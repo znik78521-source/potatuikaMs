@@ -69,51 +69,63 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+function cleanUsername(username) {
+  if (!username) return '';
+  let clean = username;
+  while (clean.startsWith('@')) {
+    clean = clean.substring(1);
+  }
+  return clean;
+}
+
 // ===== API =====
 app.post('/api/register', async (req, res) => {
   const { username, password, displayName } = req.body;
   
-  if (users[username]) {
+  const cleanUser = cleanUsername(username);
+  
+  if (users[cleanUser]) {
     return res.status(400).json({ error: 'Username уже существует' });
   }
   
   const passwordHash = await bcrypt.hash(password, 10);
-  users[username] = {
-    username,
+  users[cleanUser] = {
+    username: cleanUser,
     passwordHash,
-    displayName: displayName || username,
+    displayName: displayName || cleanUser,
     bio: '',
     avatar: null,
     theme: 'purple-green',
     createdAt: Date.now()
   };
   
-  const token = jwt.sign({ username }, 'SECRET_KEY');
-  sessions[token] = username;
+  const token = jwt.sign({ username: cleanUser }, 'SECRET_KEY');
+  sessions[token] = cleanUser;
   saveAll();
   
-  res.json({ token, user: users[username] });
+  res.json({ token, user: users[cleanUser] });
 });
 
 app.post('/api/login', async (req, res) => {
   const { username, password, token: savedToken } = req.body;
   
-  // Авто-вход по токену
   if (savedToken && sessions[savedToken]) {
-    const username = sessions[savedToken];
-    if (users[username]) {
-      return res.json({ token: savedToken, user: users[username] });
+    const usernameFromToken = sessions[savedToken];
+    if (users[usernameFromToken]) {
+      return res.json({ token: savedToken, user: users[usernameFromToken] });
     }
   }
   
-  // Обычный вход
-  const user = users[username];
+  const cleanUser = cleanUsername(username);
+  const user = users[cleanUser];
+  
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return res.status(401).json({ error: 'Неверный логин или пароль' });
   }
   
-  const token = jwt.sign({ username }, 'SECRET_KEY');
-  sessions[token] = username;
+  const token = jwt.sign({ username: cleanUser }, 'SECRET_KEY');
+  sessions[token] = cleanUser;
   saveAll();
   
   res.json({ token, user });
@@ -185,9 +197,16 @@ app.post('/api/create-channel', (req, res) => {
 
 app.get('/api/search', (req, res) => {
   const query = req.query.q?.toLowerCase() || '';
+  const cleanQuery = cleanUsername(query);
+  
   const results = Object.values(users)
-    .filter(u => u.username.toLowerCase().includes(query) || u.displayName.toLowerCase().includes(query))
-    .map(u => ({ username: u.username, displayName: u.displayName, avatar: u.avatar }));
+    .filter(u => u.username.toLowerCase().includes(cleanQuery) || 
+                  u.displayName.toLowerCase().includes(cleanQuery))
+    .map(u => ({ 
+      username: u.username,
+      displayName: u.displayName, 
+      avatar: u.avatar 
+    }));
   res.json(results);
 });
 
@@ -220,53 +239,67 @@ io.on('connection', (socket) => {
   Object.keys(messages).forEach(chatId => {
     if (chatId.includes(username)) {
       const other = chatId.replace(username, '').replace('_', '');
-      userDMs.push({ id: chatId, type: 'dm', with: other });
+      if (other && users[other]) {
+        userDMs.push({ 
+          id: chatId, 
+          type: 'dm', 
+          with: other,
+          lastMessage: messages[chatId][messages[chatId].length - 1]
+        });
+      }
     }
   });
   
   socket.emit('init', {
     user: users[username],
-    chats: [...userDMs, ...userGroups, ...userChannels],
-    groups: userGroups,
-    channels: userChannels
+    chats: [...userDMs, ...userGroups, ...userChannels]
   });
   
   // Отправка сообщения
   socket.on('send_message', (data) => {
     const { to, type, text, attachments } = data;
+    const cleanTo = cleanUsername(to);
     
     const message = {
       id: uuidv4(),
       from: username,
-      to,
-      text,
+      to: cleanTo,
+      text: text,
       attachments: attachments || [],
       timestamp: Date.now(),
-      type
+      type: type
     };
     
     let chatId;
     if (type === 'dm') {
-      chatId = [username, to].sort().join('_');
+      chatId = [username, cleanTo].sort().join('_');
       if (!messages[chatId]) messages[chatId] = [];
       messages[chatId].push(message);
+      saveAll();
+      
+      // Отправляем отправителю
+      socket.emit('new_message', message);
       
       // Отправляем получателю
-      const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === to);
+      const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === cleanTo);
       if (recipientSocket) {
         recipientSocket.emit('new_message', message);
       }
-      socket.emit('new_message', message);
     }
     else if (type === 'group') {
       const group = groups[to];
       if (group && group.members.includes(username)) {
         if (!messages[to]) messages[to] = [];
         messages[to].push(message);
+        saveAll();
+        
+        socket.emit('new_message', message);
         
         group.members.forEach(member => {
-          const memberSocket = [...io.sockets.sockets.values()].find(s => s.username === member);
-          if (memberSocket) memberSocket.emit('new_message', message);
+          if (member !== username) {
+            const memberSocket = [...io.sockets.sockets.values()].find(s => s.username === member);
+            if (memberSocket) memberSocket.emit('new_message', message);
+          }
         });
       }
     }
@@ -275,15 +308,18 @@ io.on('connection', (socket) => {
       if (channel && channel.subscribers.includes(username)) {
         if (!messages[to]) messages[to] = [];
         messages[to].push(message);
+        saveAll();
+        
+        socket.emit('new_message', message);
         
         channel.subscribers.forEach(sub => {
-          const subSocket = [...io.sockets.sockets.values()].find(s => s.username === sub);
-          if (subSocket) subSocket.emit('new_message', message);
+          if (sub !== username) {
+            const subSocket = [...io.sockets.sockets.values()].find(s => s.username === sub);
+            if (subSocket) subSocket.emit('new_message', message);
+          }
         });
       }
     }
-    
-    saveAll();
   });
   
   // Загрузка истории

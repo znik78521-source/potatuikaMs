@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potatuika 2.0 💜💚</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Potatuika Messenger 💜💚</title>
     <style>
         * {
             margin: 0;
@@ -11,7 +11,6 @@
             box-sizing: border-box;
         }
 
-        /* ТЕМЫ */
         body.theme-purple-green {
             --primary: #b77bff;
             --secondary: #00ffaa;
@@ -38,7 +37,6 @@
             overflow: hidden;
         }
 
-        /* АВТОРИЗАЦИЯ */
         .page {
             display: none;
             width: 100%;
@@ -116,13 +114,11 @@
             cursor: pointer;
         }
 
-        /* ОСНОВНОЕ ПРИЛОЖЕНИЕ */
         .app-container {
             display: flex;
             height: 100vh;
         }
 
-        /* БОКОВАЯ ПАНЕЛЬ */
         .sidebar {
             width: 300px;
             background: rgba(26, 11, 46, 0.95);
@@ -211,7 +207,6 @@
             margin-top: 5px;
         }
 
-        /* ЧАТ */
         .chat-area {
             flex: 1;
             display: flex;
@@ -285,7 +280,6 @@
             margin-top: 5px;
         }
 
-        /* МОДАЛЬНЫЕ ОКНА */
         .modal {
             display: none;
             position: fixed;
@@ -337,7 +331,6 @@
             margin-right: 10px;
         }
 
-        /* МЕДИА ПЛЕЕР */
         .media-viewer {
             display: none;
             position: fixed;
@@ -369,7 +362,6 @@
             color: white;
         }
 
-        /* НАСТРОЙКИ */
         .settings-section {
             margin-bottom: 20px;
         }
@@ -415,7 +407,6 @@
     </style>
 </head>
 <body class="theme-purple-green">
-    <!-- ЛОГИН/РЕГИСТРАЦИЯ -->
     <div id="login-page" class="page active">
         <div class="auth-container">
             <div class="logo">
@@ -432,7 +423,7 @@
                 <button id="login-btn">Войти</button>
             </div>
             <div id="register-form" class="auth-form">
-                <input type="text" id="reg-username" placeholder="@username">
+                <input type="text" id="reg-username" placeholder="username (без @)">
                 <input type="text" id="reg-displayname" placeholder="Отображаемое имя">
                 <input type="password" id="reg-password" placeholder="Пароль">
                 <button id="register-btn">Создать аккаунт</button>
@@ -440,7 +431,6 @@
         </div>
     </div>
 
-    <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
     <div id="app-page" class="page">
         <div class="app-container">
             <div class="sidebar">
@@ -452,7 +442,7 @@
                     </div>
                 </div>
                 <div class="search-box">
-                    <input type="text" id="search-input" placeholder="🔍 Поиск по @username">
+                    <input type="text" id="search-input" placeholder="🔍 Поиск по username">
                 </div>
                 <div class="chats-list" id="chats-list"></div>
             </div>
@@ -475,7 +465,6 @@
         </div>
     </div>
 
-    <!-- МОДАЛЬНЫЕ ОКНА -->
     <div id="profile-modal" class="modal">
         <div class="modal-content">
             <h3>Редактировать профиль</h3>
@@ -524,7 +513,6 @@
         </div>
     </div>
 
-    <!-- МЕДИА ПЛЕЕР -->
     <div id="media-viewer" class="media-viewer">
         <span class="close-media" onclick="closeMedia()">×</span>
         <img id="media-img" style="display: none;">
@@ -539,7 +527,6 @@
         let currentChat = null;
         let token = localStorage.getItem('potatuika_token');
 
-        // Функции модальных окон
         function openModal(id) {
             document.getElementById(id).classList.add('active');
         }
@@ -581,7 +568,6 @@
             viewer.classList.add('active');
         }
 
-        // Сохранение настроек
         function saveSettings() {
             const theme = document.getElementById('theme-select').value;
             document.body.className = `theme-${theme}`;
@@ -595,7 +581,14 @@
             closeModal('settings-modal');
         }
 
-        // Автоматический вход
+        function cleanUsername(name) {
+            if (!name) return '';
+            while (name.startsWith('@')) {
+                name = name.substring(1);
+            }
+            return name;
+        }
+
         if (token) {
             fetch('/api/login', {
                 method: 'POST',
@@ -611,11 +604,12 @@
             });
         }
 
-        // Регистрация
         document.getElementById('register-btn')?.addEventListener('click', async () => {
-            const username = document.getElementById('reg-username').value;
+            let username = document.getElementById('reg-username').value;
             const displayName = document.getElementById('reg-displayname').value;
             const password = document.getElementById('reg-password').value;
+            
+            username = cleanUsername(username);
             
             const res = await fetch('/api/register', {
                 method: 'POST',
@@ -632,10 +626,11 @@
             }
         });
 
-        // Логин
         document.getElementById('login-btn')?.addEventListener('click', async () => {
-            const username = document.getElementById('login-username').value;
+            let username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
+            
+            username = cleanUsername(username);
             
             const res = await fetch('/api/login', {
                 method: 'POST',
@@ -666,7 +661,6 @@
                 }
                 document.getElementById('login-page').classList.remove('active');
                 document.getElementById('app-page').classList.add('active');
-                
                 renderChats(data.chats);
             });
             
@@ -674,29 +668,56 @@
                 if (currentChat && message.to === currentChat.id) {
                     addMessageToChat(message);
                 }
-                refreshChats();
+                // Обновляем список чатов
+                socket.emit('get_chats');
             });
             
             socket.on('chat_history', (data) => {
                 const container = document.getElementById('messages-container');
                 container.innerHTML = '';
                 data.messages.forEach(msg => addMessageToChat(msg));
+                container.scrollTop = container.scrollHeight;
             });
         }
 
         function renderChats(chats) {
             const container = document.getElementById('chats-list');
             container.innerHTML = '';
+            
+            if (!chats || chats.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: gray;">Нет чатов<br>Найдите пользователя через поиск</div>';
+                return;
+            }
+            
             chats.forEach(chat => {
                 const div = document.createElement('div');
                 div.className = 'chat-item';
+                if (currentChat && currentChat.id === chat.id) div.classList.add('active');
+                
+                let displayName = '';
+                let icon = '👤';
+                
+                if (chat.type === 'dm') {
+                    displayName = '@' + chat.with;
+                    icon = '👤';
+                } else if (chat.type === 'group') {
+                    displayName = chat.name;
+                    icon = '👥';
+                } else if (chat.type === 'channel') {
+                    displayName = chat.name;
+                    icon = '📢';
+                }
+                
                 div.onclick = () => {
-                    currentChat = chat;
-                    document.getElementById('chat-title').textContent = chat.type === 'dm' ? chat.with : chat.name;
+                    currentChat = { id: chat.id, type: chat.type, name: displayName };
+                    document.getElementById('chat-title').textContent = displayName;
                     document.getElementById('chat-area').style.display = 'flex';
                     socket.emit('load_chat', { chatId: chat.id });
+                    document.querySelectorAll('.chat-item').forEach(item => item.classList.remove('active'));
+                    div.classList.add('active');
                 };
-                div.innerHTML = `<div class="chat-name">${chat.type === 'dm' ? '👤' : chat.type === 'group' ? '👥' : '📢'} ${chat.name || chat.with}</div>`;
+                
+                div.innerHTML = `<div class="chat-name">${icon} ${displayName}</div><div class="chat-preview">${chat.lastMessage ? (chat.lastMessage.text || '📎 Файл') : 'Новый чат'}</div>`;
                 container.appendChild(div);
             });
         }
@@ -708,12 +729,15 @@
             div.className = `message ${isOwn ? 'own' : 'other'}`;
             
             let content = '';
-            if (!isOwn) {
+            if (!isOwn && message.type === 'dm') {
+                content += `<div class="message-sender">${message.from}</div>`;
+            } else if (!isOwn && (message.type === 'group' || message.type === 'channel')) {
                 content += `<div class="message-sender">${message.from}</div>`;
             }
-            content += `<div class="message-text">${message.text}</div>`;
             
-            if (message.attachments) {
+            content += `<div class="message-text">${escapeHtml(message.text)}</div>`;
+            
+            if (message.attachments && message.attachments.length > 0) {
                 message.attachments.forEach(att => {
                     if (att.type === 'image') {
                         content += `<img src="${att.url}" class="message-image" onclick="viewMedia('${att.url}', 'image')">`;
@@ -722,7 +746,7 @@
                     } else if (att.type === 'audio') {
                         content += `<audio src="${att.url}" class="message-audio" controls></audio>`;
                     } else {
-                        content += `<a href="${att.url}" target="_blank">📎 ${att.name}</a>`;
+                        content += `<a href="${att.url}" target="_blank">📎 ${escapeHtml(att.name)}</a>`;
                     }
                 });
             }
@@ -732,14 +756,14 @@
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         }
-
-        function refreshChats() {
-            if (currentChat) {
-                socket.emit('load_chat', { chatId: currentChat.id });
-            }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
-        // Отправка сообщений
         document.getElementById('send-btn')?.addEventListener('click', () => {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
@@ -747,7 +771,7 @@
                 socket.emit('send_message', {
                     to: currentChat.id,
                     type: currentChat.type,
-                    text,
+                    text: text,
                     attachments: []
                 });
                 input.value = '';
@@ -758,7 +782,6 @@
             if (e.key === 'Enter') document.getElementById('send-btn').click();
         });
 
-        // Загрузка файлов
         document.getElementById('file-btn')?.addEventListener('click', () => {
             const input = document.createElement('input');
             input.type = 'file';
@@ -782,7 +805,6 @@
             input.click();
         });
 
-        // Редактор профиля
         document.getElementById('user-info')?.addEventListener('click', () => {
             document.getElementById('profile-displayname').value = currentUser.displayName || '';
             document.getElementById('profile-bio').value = currentUser.bio || '';
@@ -829,13 +851,11 @@
             alert('Аватарка обновлена!');
         });
 
-        // Настройки
         document.getElementById('settings-btn')?.addEventListener('click', () => {
-            document.getElementById('theme-select').value = currentUser.theme || 'purple-green';
+            document.getElementById('theme-select').value = currentUser?.theme || 'purple-green';
             openModal('settings-modal');
         });
 
-        // Создание группы
         document.getElementById('create-group-btn')?.addEventListener('click', () => {
             openModal('group-modal');
         });
@@ -856,7 +876,6 @@
             }
         });
 
-        // Создание канала
         document.getElementById('create-channel-btn')?.addEventListener('click', () => {
             openModal('channel-modal');
         });
@@ -877,9 +896,10 @@
             }
         });
 
-        // Поиск
         document.getElementById('search-input')?.addEventListener('input', async (e) => {
-            const query = e.target.value;
+            let query = e.target.value;
+            query = cleanUsername(query);
+            
             if (query.length > 1) {
                 const res = await fetch(`/api/search?q=${query}`);
                 const users = await res.json();
@@ -889,10 +909,11 @@
                     const div = document.createElement('div');
                     div.className = 'chat-item';
                     div.onclick = () => {
-                        currentChat = { id: user.username, type: 'dm', name: user.displayName };
-                        document.getElementById('chat-title').textContent = user.displayName;
+                        const chatId = [currentUser.username, user.username].sort().join('_');
+                        currentChat = { id: chatId, type: 'dm', name: '@' + user.username };
+                        document.getElementById('chat-title').textContent = '@' + user.username;
                         document.getElementById('chat-area').style.display = 'flex';
-                        socket.emit('load_chat', { chatId: [currentUser.username, user.username].sort().join('_') });
+                        socket.emit('load_chat', { chatId: chatId });
                     };
                     div.innerHTML = `<div class="chat-name">👤 ${user.displayName}</div><div class="chat-preview">@${user.username}</div>`;
                     container.appendChild(div);
@@ -900,7 +921,6 @@
             }
         });
 
-        // Переключение табов авторизации
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset.tab;
