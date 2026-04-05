@@ -202,28 +202,6 @@ app.get('/api/search', (req, res) => {
   res.json(results);
 });
 
-app.get('/api/chats', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  const username = sessions[token];
-  
-  if (!username) return res.json([]);
-  
-  const userGroups = Object.values(groups).filter(g => g.members.includes(username));
-  const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
-  const userDMs = [];
-  
-  Object.keys(messages).forEach(chatId => {
-    if (chatId.includes(username)) {
-      const other = chatId.replace(username, '').replace('_', '');
-      if (other && users[other]) {
-        userDMs.push({ id: chatId, type: 'dm', with: other });
-      }
-    }
-  });
-  
-  res.json([...userDMs, ...userGroups, ...userChannels]);
-});
-
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
@@ -253,7 +231,12 @@ io.on('connection', (socket) => {
     if (chatId.includes(username)) {
       const other = chatId.replace(username, '').replace(/_/g, '');
       if (other && users[other]) {
-        userDMs.push({ id: chatId, type: 'dm', with: other });
+        userDMs.push({ 
+          id: chatId, 
+          type: 'dm', 
+          with: other,
+          lastMessage: messages[chatId][messages[chatId].length - 1]
+        });
       }
     }
   });
@@ -263,7 +246,7 @@ io.on('connection', (socket) => {
     chats: [...userDMs, ...userGroups, ...userChannels]
   });
   
-  // Отправка сообщения - ИСПРАВЛЕНО!
+  // Отправка сообщения
   socket.on('send_message', (data) => {
     const { to, type, text, attachments } = data;
     console.log(`📨 ${username} -> ${to}: ${text}`);
@@ -286,10 +269,8 @@ io.on('connection', (socket) => {
       messages[chatId].push(message);
       saveAll();
       
-      // Отправляем отправителю
       socket.emit('new_message', message);
       
-      // Отправляем получателю
       const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === to);
       if (recipientSocket) {
         recipientSocket.emit('new_message', message);
