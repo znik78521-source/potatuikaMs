@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potatuika Messenger 💜💚</title>
+    <title>Potatuika 2.0 💜💚</title>
     <style>
         * {
             margin: 0;
@@ -11,14 +11,34 @@
             box-sizing: border-box;
         }
 
+        /* ТЕМЫ */
+        body.theme-purple-green {
+            --primary: #b77bff;
+            --secondary: #00ffaa;
+            --bg-dark: #1a0b2e;
+            --bg-light: #2a1a3e;
+            --text: #ffffff;
+            --text-secondary: rgba(255,255,255,0.7);
+        }
+
+        body.theme-dark {
+            --primary: #6c5ce7;
+            --secondary: #a8e6cf;
+            --bg-dark: #1e1e1e;
+            --bg-light: #2d2d2d;
+            --text: #ffffff;
+            --text-secondary: rgba(255,255,255,0.7);
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a0b2e 0%, #2a1a3e 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark), var(--bg-light));
+            color: var(--text);
             height: 100vh;
             overflow: hidden;
         }
 
-        /* Страницы */
+        /* АВТОРИЗАЦИЯ */
         .page {
             display: none;
             width: 100%;
@@ -29,15 +49,13 @@
             display: block;
         }
 
-        /* АВТОРИЗАЦИЯ */
         .auth-container {
             max-width: 400px;
             margin: 100px auto;
-            background: rgba(30, 16, 41, 0.95);
+            background: rgba(26, 11, 46, 0.95);
             border-radius: 20px;
             padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(183, 123, 255, 0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         }
 
         .logo {
@@ -45,15 +63,8 @@
             margin-bottom: 30px;
         }
 
-        .logo-icon {
-            font-size: 48px;
-        }
-
-        .logo h1 {
-            color: #b77bff;
-            font-size: 32px;
-            margin-top: 10px;
-        }
+        .logo-icon { font-size: 48px; }
+        .logo h1 { color: var(--primary); font-size: 32px; }
 
         .auth-tabs {
             display: flex;
@@ -64,18 +75,16 @@
         .tab-btn {
             flex: 1;
             padding: 12px;
-            background: rgba(183, 123, 255, 0.1);
+            background: rgba(183,123,255,0.1);
             border: none;
-            color: #fff;
+            color: var(--text);
             cursor: pointer;
             border-radius: 10px;
-            font-size: 16px;
-            transition: 0.3s;
         }
 
         .tab-btn.active {
-            background: linear-gradient(135deg, #b77bff, #00ffaa);
-            color: #1a0b2e;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: var(--bg-dark);
             font-weight: bold;
         }
 
@@ -91,41 +100,20 @@
             width: 100%;
             padding: 14px;
             margin-bottom: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(183, 123, 255, 0.3);
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(183,123,255,0.3);
             border-radius: 10px;
-            color: #fff;
-            font-size: 16px;
-        }
-
-        .auth-form input:focus {
-            outline: none;
-            border-color: #00ffaa;
+            color: var(--text);
         }
 
         .auth-form button {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #b77bff, #00ffaa);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             border: none;
             border-radius: 10px;
-            color: #1a0b2e;
-            font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .auth-form button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 255, 170, 0.3);
-        }
-
-        .demo-hint {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 12px;
-            margin-top: 20px;
         }
 
         /* ОСНОВНОЕ ПРИЛОЖЕНИЕ */
@@ -134,50 +122,50 @@
             height: 100vh;
         }
 
-        /* Боковая панель */
+        /* БОКОВАЯ ПАНЕЛЬ */
         .sidebar {
             width: 300px;
             background: rgba(26, 11, 46, 0.95);
-            border-right: 1px solid rgba(183, 123, 255, 0.2);
+            border-right: 1px solid rgba(183,123,255,0.2);
             display: flex;
             flex-direction: column;
         }
 
         .user-info {
             padding: 20px;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0,0,0,0.3);
             display: flex;
             align-items: center;
             gap: 12px;
-            border-bottom: 1px solid rgba(183, 123, 255, 0.2);
+            cursor: pointer;
         }
 
         .avatar {
             width: 48px;
             height: 48px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #b77bff, #00ffaa);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 20px;
             font-weight: bold;
-            color: #1a0b2e;
+            cursor: pointer;
+        }
+
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
         }
 
         .user-details {
             flex: 1;
         }
 
-        .user-details h3 {
-            color: #fff;
-            font-size: 16px;
-        }
-
-        .user-details p {
-            color: #00ffaa;
-            font-size: 12px;
-        }
+        .user-details h3 { font-size: 16px; }
+        .user-details p { font-size: 12px; color: var(--secondary); }
 
         .search-box {
             padding: 15px;
@@ -186,10 +174,10 @@
         .search-box input {
             width: 100%;
             padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(183, 123, 255, 0.3);
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(183,123,255,0.3);
             border-radius: 10px;
-            color: #fff;
+            color: var(--text);
         }
 
         .chats-list {
@@ -201,54 +189,53 @@
             padding: 15px;
             cursor: pointer;
             transition: 0.3s;
-            border-bottom: 1px solid rgba(183, 123, 255, 0.1);
+            border-bottom: 1px solid rgba(183,123,255,0.1);
         }
 
         .chat-item:hover {
-            background: rgba(183, 123, 255, 0.1);
+            background: rgba(183,123,255,0.1);
         }
 
         .chat-item.active {
-            background: linear-gradient(90deg, rgba(183, 123, 255, 0.2), transparent);
-            border-left: 3px solid #00ffaa;
+            background: linear-gradient(90deg, rgba(183,123,255,0.2), transparent);
+            border-left: 3px solid var(--secondary);
         }
 
         .chat-name {
-            color: #fff;
             font-weight: bold;
         }
 
         .chat-preview {
-            color: rgba(255, 255, 255, 0.5);
             font-size: 12px;
+            color: var(--text-secondary);
             margin-top: 5px;
         }
 
-        .online-status {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #00ffaa;
-            margin-right: 8px;
-        }
-
-        /* Чат */
+        /* ЧАТ */
         .chat-area {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: rgba(30, 16, 41, 0.8);
         }
 
         .chat-header {
             padding: 20px;
             background: rgba(26, 11, 46, 0.95);
-            border-bottom: 1px solid rgba(183, 123, 255, 0.2);
+            border-bottom: 1px solid rgba(183,123,255,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .chat-header h2 {
-            color: #b77bff;
+        .chat-header h2 { color: var(--primary); }
+
+        .chat-actions button {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 20px;
+            cursor: pointer;
+            margin-left: 10px;
         }
 
         .messages-container {
@@ -264,19 +251,17 @@
             max-width: 60%;
             padding: 10px 15px;
             border-radius: 15px;
-            word-wrap: break-word;
         }
 
         .message.own {
             align-self: flex-end;
-            background: linear-gradient(135deg, #00ffaa, #00cc88);
-            color: #1a0b2e;
+            background: linear-gradient(135deg, var(--secondary), #00cc88);
+            color: var(--bg-dark);
         }
 
         .message.other {
             align-self: flex-start;
-            background: rgba(183, 123, 255, 0.2);
-            color: #fff;
+            background: rgba(183,123,255,0.2);
         }
 
         .message-sender {
@@ -285,79 +270,157 @@
             margin-bottom: 5px;
         }
 
-        .message-text {
-            font-size: 14px;
-        }
-
-        .message-time {
-            font-size: 10px;
-            opacity: 0.7;
-            margin-top: 5px;
-        }
+        .message-text { font-size: 14px; }
+        .message-time { font-size: 10px; opacity: 0.7; margin-top: 5px; }
 
         .message-image, .message-video {
             max-width: 300px;
             border-radius: 10px;
             margin-top: 5px;
+            cursor: pointer;
         }
 
-        /* Ввод сообщения */
+        .message-audio {
+            width: 250px;
+            margin-top: 5px;
+        }
+
+        /* МОДАЛЬНЫЕ ОКНА */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-light);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        .modal-content input, .modal-content textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(183,123,255,0.3);
+            border-radius: 10px;
+            color: var(--text);
+        }
+
+        .modal-content button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        /* МЕДИА ПЛЕЕР */
+        .media-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            justify-content: center;
+            align-items: center;
+            z-index: 1100;
+        }
+
+        .media-viewer.active {
+            display: flex;
+        }
+
+        .media-viewer img, .media-viewer video {
+            max-width: 90%;
+            max-height: 90%;
+        }
+
+        .close-media {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 40px;
+            cursor: pointer;
+            color: white;
+        }
+
+        /* НАСТРОЙКИ */
+        .settings-section {
+            margin-bottom: 20px;
+        }
+
+        .settings-section label {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .settings-section select {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(183,123,255,0.3);
+            border-radius: 10px;
+            color: var(--text);
+        }
+
         .message-input-area {
             padding: 20px;
             background: rgba(26, 11, 46, 0.95);
             display: flex;
             gap: 10px;
-            border-top: 1px solid rgba(183, 123, 255, 0.2);
         }
 
         .message-input-area input {
             flex: 1;
             padding: 12px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(183, 123, 255, 0.3);
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(183,123,255,0.3);
             border-radius: 25px;
-            color: #fff;
+            color: var(--text);
         }
 
         .message-input-area button {
             padding: 12px 24px;
-            background: linear-gradient(135deg, #b77bff, #00ffaa);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             border: none;
             border-radius: 25px;
-            color: #1a0b2e;
             font-weight: bold;
             cursor: pointer;
         }
-
-        .file-btn {
-            background: rgba(183, 123, 255, 0.3) !important;
-        }
-
-        /* Каналы */
-        .channels-panel {
-            position: fixed;
-            right: 20px;
-            bottom: 80px;
-        }
-
-        .create-channel-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #b77bff, #00ffaa);
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 5px 20px rgba(0, 255, 170, 0.3);
-        }
     </style>
 </head>
-<body>
+<body class="theme-purple-green">
+    <!-- ЛОГИН/РЕГИСТРАЦИЯ -->
     <div id="login-page" class="page active">
         <div class="auth-container">
             <div class="logo">
                 <div class="logo-icon">💜💚</div>
-                <h1>Potatuika</h1>
+                <h1>Potatuika 2.0</h1>
             </div>
             <div class="auth-tabs">
                 <button class="tab-btn active" data-tab="login">Вход</button>
@@ -367,17 +430,17 @@
                 <input type="text" id="login-username" placeholder="@username">
                 <input type="password" id="login-password" placeholder="Пароль">
                 <button id="login-btn">Войти</button>
-                <p class="demo-hint">🍟 Тестовые: alex / 123  или  maria / 123</p>
             </div>
             <div id="register-form" class="auth-form">
                 <input type="text" id="reg-username" placeholder="@username">
-                <input type="text" id="reg-displayname" placeholder="Ваше имя">
+                <input type="text" id="reg-displayname" placeholder="Отображаемое имя">
                 <input type="password" id="reg-password" placeholder="Пароль">
                 <button id="register-btn">Создать аккаунт</button>
             </div>
         </div>
     </div>
 
+    <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
     <div id="app-page" class="page">
         <div class="app-container">
             <div class="sidebar">
@@ -396,10 +459,15 @@
             <div class="chat-area" id="chat-area" style="display: none;">
                 <div class="chat-header">
                     <h2 id="chat-title"></h2>
+                    <div class="chat-actions">
+                        <button id="settings-btn" title="Настройки">⚙️</button>
+                        <button id="create-group-btn" title="Создать группу">👥</button>
+                        <button id="create-channel-btn" title="Создать канал">📢</button>
+                    </div>
                 </div>
                 <div class="messages-container" id="messages-container"></div>
                 <div class="message-input-area">
-                    <button class="file-btn" id="file-btn">📎</button>
+                    <button id="file-btn">📎</button>
                     <input type="text" id="message-input" placeholder="Введите сообщение...">
                     <button id="send-btn">Отправить</button>
                 </div>
@@ -407,26 +475,144 @@
         </div>
     </div>
 
+    <!-- МОДАЛЬНЫЕ ОКНА -->
+    <div id="profile-modal" class="modal">
+        <div class="modal-content">
+            <h3>Редактировать профиль</h3>
+            <input type="text" id="profile-displayname" placeholder="Отображаемое имя">
+            <textarea id="profile-bio" rows="3" placeholder="О себе"></textarea>
+            <button id="upload-avatar-btn">Загрузить аватарку</button>
+            <input type="file" id="avatar-input" accept="image/*" style="display: none;">
+            <br><br>
+            <button id="save-profile">Сохранить</button>
+            <button onclick="closeModal('profile-modal')">Отмена</button>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <h3>Настройки</h3>
+            <div class="settings-section">
+                <label>Тема</label>
+                <select id="theme-select">
+                    <option value="purple-green">Фиолетово-зеленая</option>
+                    <option value="dark">Темная</option>
+                </select>
+            </div>
+            <button onclick="saveSettings()">Сохранить</button>
+            <button onclick="closeModal('settings-modal')">Закрыть</button>
+        </div>
+    </div>
+
+    <div id="group-modal" class="modal">
+        <div class="modal-content">
+            <h3>Создать группу</h3>
+            <input type="text" id="group-name" placeholder="Название группы">
+            <textarea id="group-desc" placeholder="Описание"></textarea>
+            <button id="create-group-submit">Создать</button>
+            <button onclick="closeModal('group-modal')">Отмена</button>
+        </div>
+    </div>
+
+    <div id="channel-modal" class="modal">
+        <div class="modal-content">
+            <h3>Создать канал</h3>
+            <input type="text" id="channel-name" placeholder="Название канала">
+            <textarea id="channel-desc" placeholder="Описание"></textarea>
+            <button id="create-channel-submit">Создать</button>
+            <button onclick="closeModal('channel-modal')">Отмена</button>
+        </div>
+    </div>
+
+    <!-- МЕДИА ПЛЕЕР -->
+    <div id="media-viewer" class="media-viewer">
+        <span class="close-media" onclick="closeMedia()">×</span>
+        <img id="media-img" style="display: none;">
+        <video id="media-video" controls style="display: none;"></video>
+        <audio id="media-audio" controls style="display: none;"></audio>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         let socket = null;
         let currentUser = null;
         let currentChat = null;
-        let token = null;
+        let token = localStorage.getItem('potatuika_token');
 
-        // Переключение табов
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const tab = btn.dataset.tab;
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
-                document.getElementById(`${tab}-form`).classList.add('active');
+        // Функции модальных окон
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function closeMedia() {
+            document.getElementById('media-viewer').classList.remove('active');
+            document.getElementById('media-img').style.display = 'none';
+            document.getElementById('media-video').style.display = 'none';
+            document.getElementById('media-audio').style.display = 'none';
+            document.getElementById('media-video').pause();
+            document.getElementById('media-audio').pause();
+        }
+
+        function viewMedia(url, type) {
+            const viewer = document.getElementById('media-viewer');
+            const img = document.getElementById('media-img');
+            const video = document.getElementById('media-video');
+            const audio = document.getElementById('media-audio');
+            
+            img.style.display = 'none';
+            video.style.display = 'none';
+            audio.style.display = 'none';
+            
+            if (type === 'image') {
+                img.src = url;
+                img.style.display = 'block';
+            } else if (type === 'video') {
+                video.src = url;
+                video.style.display = 'block';
+                video.play();
+            } else if (type === 'audio') {
+                audio.src = url;
+                audio.style.display = 'block';
+                audio.play();
+            }
+            viewer.classList.add('active');
+        }
+
+        // Сохранение настроек
+        function saveSettings() {
+            const theme = document.getElementById('theme-select').value;
+            document.body.className = `theme-${theme}`;
+            if (currentUser) {
+                fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, theme })
+                });
+            }
+            closeModal('settings-modal');
+        }
+
+        // Автоматический вход
+        if (token) {
+            fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            }).then(res => res.json()).then(data => {
+                if (data.user) {
+                    currentUser = data.user;
+                    token = data.token;
+                    localStorage.setItem('potatuika_token', token);
+                    connectSocket();
+                }
             });
-        });
+        }
 
         // Регистрация
-        document.getElementById('register-btn').addEventListener('click', async () => {
+        document.getElementById('register-btn')?.addEventListener('click', async () => {
             const username = document.getElementById('reg-username').value;
             const displayName = document.getElementById('reg-displayname').value;
             const password = document.getElementById('reg-password').value;
@@ -438,7 +624,6 @@
             });
             
             if (res.ok) {
-                const data = await res.json();
                 alert('Регистрация успешна! Теперь войдите');
                 document.querySelector('[data-tab="login"]').click();
             } else {
@@ -448,7 +633,7 @@
         });
 
         // Логин
-        document.getElementById('login-btn').addEventListener('click', async () => {
+        document.getElementById('login-btn')?.addEventListener('click', async () => {
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
             
@@ -460,8 +645,9 @@
             
             if (res.ok) {
                 const data = await res.json();
-                token = data.token;
                 currentUser = data.user;
+                token = data.token;
+                localStorage.setItem('potatuika_token', token);
                 connectSocket();
             } else {
                 alert('Неверный логин или пароль');
@@ -469,18 +655,15 @@
         });
 
         function connectSocket() {
-            socket = io({
-                auth: { token }
-            });
-            
-            socket.on('connect', () => {
-                console.log('Подключено к серверу');
-            });
+            socket = io({ auth: { token } });
             
             socket.on('init', (data) => {
                 currentUser = data.user;
                 document.getElementById('user-displayname').textContent = currentUser.displayName;
                 document.getElementById('user-username').textContent = '@' + currentUser.username;
+                if (currentUser.avatar) {
+                    document.getElementById('user-avatar').innerHTML = `<img src="${currentUser.avatar}" class="avatar-img">`;
+                }
                 document.getElementById('login-page').classList.remove('active');
                 document.getElementById('app-page').classList.add('active');
                 
@@ -488,9 +671,7 @@
             });
             
             socket.on('new_message', (message) => {
-                if (currentChat && 
-                    ((message.type === 'dm' && (message.from === currentChat.id || message.to === currentChat.id)) ||
-                     (message.type === 'channel' && message.to === currentChat.id))) {
+                if (currentChat && message.to === currentChat.id) {
                     addMessageToChat(message);
                 }
                 refreshChats();
@@ -501,42 +682,25 @@
                 container.innerHTML = '';
                 data.messages.forEach(msg => addMessageToChat(msg));
             });
-            
-            socket.on('user_online', ({ username }) => {
-                refreshChats();
-            });
-            
-            socket.on('user_offline', ({ username }) => {
-                refreshChats();
-            });
         }
-        
+
         function renderChats(chats) {
             const container = document.getElementById('chats-list');
             container.innerHTML = '';
             chats.forEach(chat => {
                 const div = document.createElement('div');
                 div.className = 'chat-item';
-                div.onclick = () => loadChat(chat);
-                div.innerHTML = `
-                    <div class="chat-name">
-                        ${chat.type === 'dm' ? '👤 ' + chat.displayName : '📢 ' + chat.name}
-                    </div>
-                    <div class="chat-preview">
-                        ${chat.lastMessage ? chat.lastMessage.text : 'Новый чат'}
-                    </div>
-                `;
+                div.onclick = () => {
+                    currentChat = chat;
+                    document.getElementById('chat-title').textContent = chat.type === 'dm' ? chat.with : chat.name;
+                    document.getElementById('chat-area').style.display = 'flex';
+                    socket.emit('load_chat', { chatId: chat.id });
+                };
+                div.innerHTML = `<div class="chat-name">${chat.type === 'dm' ? '👤' : chat.type === 'group' ? '👥' : '📢'} ${chat.name || chat.with}</div>`;
                 container.appendChild(div);
             });
         }
-        
-        function loadChat(chat) {
-            currentChat = chat;
-            document.getElementById('chat-title').textContent = chat.type === 'dm' ? chat.displayName : chat.name;
-            document.getElementById('chat-area').style.display = 'flex';
-            socket.emit('load_chat', { with: chat.id, type: chat.type });
-        }
-        
+
         function addMessageToChat(message) {
             const container = document.getElementById('messages-container');
             const isOwn = message.from === currentUser.username;
@@ -544,7 +708,7 @@
             div.className = `message ${isOwn ? 'own' : 'other'}`;
             
             let content = '';
-            if (!isOwn && message.type === 'dm') {
+            if (!isOwn) {
                 content += `<div class="message-sender">${message.from}</div>`;
             }
             content += `<div class="message-text">${message.text}</div>`;
@@ -552,9 +716,11 @@
             if (message.attachments) {
                 message.attachments.forEach(att => {
                     if (att.type === 'image') {
-                        content += `<img src="${att.url}" class="message-image">`;
+                        content += `<img src="${att.url}" class="message-image" onclick="viewMedia('${att.url}', 'image')">`;
                     } else if (att.type === 'video') {
-                        content += `<video src="${att.url}" controls class="message-video"></video>`;
+                        content += `<video src="${att.url}" class="message-video" controls onclick="viewMedia('${att.url}', 'video')"></video>`;
+                    } else if (att.type === 'audio') {
+                        content += `<audio src="${att.url}" class="message-audio" controls></audio>`;
                     } else {
                         content += `<a href="${att.url}" target="_blank">📎 ${att.name}</a>`;
                     }
@@ -566,13 +732,14 @@
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         }
-        
+
         function refreshChats() {
-            // Просто перезагружаем чаты через init
-            socket.emit('load_chat', { with: currentChat?.id, type: currentChat?.type });
+            if (currentChat) {
+                socket.emit('load_chat', { chatId: currentChat.id });
+            }
         }
-        
-        // Отправка сообщения
+
+        // Отправка сообщений
         document.getElementById('send-btn')?.addEventListener('click', () => {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
@@ -586,17 +753,16 @@
                 input.value = '';
             }
         });
-        
+
         document.getElementById('message-input')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('send-btn').click();
-            }
+            if (e.key === 'Enter') document.getElementById('send-btn').click();
         });
-        
+
         // Загрузка файлов
         document.getElementById('file-btn')?.addEventListener('click', () => {
             const input = document.createElement('input');
             input.type = 'file';
+            input.accept = 'image/*,video/*,audio/mpeg';
             input.onchange = async (e) => {
                 const file = e.target.files[0];
                 const formData = new FormData();
@@ -609,35 +775,140 @@
                 socket.emit('send_message', {
                     to: currentChat.id,
                     type: currentChat.type,
-                    text: `Отправил(а) файл: ${data.name}`,
+                    text: `📎 ${data.name}`,
                     attachments: [data]
                 });
             };
             input.click();
         });
-        
+
+        // Редактор профиля
+        document.getElementById('user-info')?.addEventListener('click', () => {
+            document.getElementById('profile-displayname').value = currentUser.displayName || '';
+            document.getElementById('profile-bio').value = currentUser.bio || '';
+            openModal('profile-modal');
+        });
+
+        document.getElementById('save-profile')?.addEventListener('click', async () => {
+            const displayName = document.getElementById('profile-displayname').value;
+            const bio = document.getElementById('profile-bio').value;
+            const res = await fetch('/api/update-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, displayName, bio })
+            });
+            const data = await res.json();
+            if (data.success) {
+                currentUser = data.user;
+                document.getElementById('user-displayname').textContent = currentUser.displayName;
+                alert('Профиль обновлен!');
+                closeModal('profile-modal');
+            }
+        });
+
+        document.getElementById('upload-avatar-btn')?.addEventListener('click', () => {
+            document.getElementById('avatar-input').click();
+        });
+
+        document.getElementById('avatar-input')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append('avatar', file);
+            const res = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            await fetch('/api/update-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, avatar: data.url })
+            });
+            currentUser.avatar = data.url;
+            document.getElementById('user-avatar').innerHTML = `<img src="${data.url}" class="avatar-img">`;
+            alert('Аватарка обновлена!');
+        });
+
+        // Настройки
+        document.getElementById('settings-btn')?.addEventListener('click', () => {
+            document.getElementById('theme-select').value = currentUser.theme || 'purple-green';
+            openModal('settings-modal');
+        });
+
+        // Создание группы
+        document.getElementById('create-group-btn')?.addEventListener('click', () => {
+            openModal('group-modal');
+        });
+
+        document.getElementById('create-group-submit')?.addEventListener('click', async () => {
+            const name = document.getElementById('group-name').value;
+            const description = document.getElementById('group-desc').value;
+            const res = await fetch('/api/create-group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, name, description })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Группа создана!');
+                closeModal('group-modal');
+                location.reload();
+            }
+        });
+
+        // Создание канала
+        document.getElementById('create-channel-btn')?.addEventListener('click', () => {
+            openModal('channel-modal');
+        });
+
+        document.getElementById('create-channel-submit')?.addEventListener('click', async () => {
+            const name = document.getElementById('channel-name').value;
+            const description = document.getElementById('channel-desc').value;
+            const res = await fetch('/api/create-channel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, name, description })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Канал создан!');
+                closeModal('channel-modal');
+                location.reload();
+            }
+        });
+
         // Поиск
         document.getElementById('search-input')?.addEventListener('input', async (e) => {
             const query = e.target.value;
             if (query.length > 1) {
                 const res = await fetch(`/api/search?q=${query}`);
                 const users = await res.json();
-                // Показываем результаты поиска в чатах
                 const container = document.getElementById('chats-list');
                 container.innerHTML = '';
                 users.forEach(user => {
                     const div = document.createElement('div');
                     div.className = 'chat-item';
                     div.onclick = () => {
-                        loadChat({ id: user.username, type: 'dm', displayName: user.displayName });
+                        currentChat = { id: user.username, type: 'dm', name: user.displayName };
+                        document.getElementById('chat-title').textContent = user.displayName;
+                        document.getElementById('chat-area').style.display = 'flex';
+                        socket.emit('load_chat', { chatId: [currentUser.username, user.username].sort().join('_') });
                     };
-                    div.innerHTML = `
-                        <div class="chat-name">👤 ${user.displayName}</div>
-                        <div class="chat-preview">@${user.username}</div>
-                    `;
+                    div.innerHTML = `<div class="chat-name">👤 ${user.displayName}</div><div class="chat-preview">@${user.username}</div>`;
                     container.appendChild(div);
                 });
             }
+        });
+
+        // Переключение табов авторизации
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+                document.getElementById(`${tab}-form`).classList.add('active');
+            });
         });
     </script>
 </body>
