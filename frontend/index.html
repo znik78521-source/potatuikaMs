@@ -11,6 +11,47 @@
             box-sizing: border-box;
         }
 
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes messageAppear {
+            from { opacity: 0; transform: translateY(20px) scale(0.9); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark), var(--bg-light));
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
         body.theme-purple-green {
             --primary: #b77bff;
             --secondary: #00ffaa;
@@ -18,6 +59,7 @@
             --bg-light: #2a1a3e;
             --text: #ffffff;
             --text-secondary: rgba(255,255,255,0.7);
+            --hover: rgba(183,123,255,0.2);
         }
 
         body.theme-dark {
@@ -27,22 +69,16 @@
             --bg-light: #2d2d2d;
             --text: #ffffff;
             --text-secondary: rgba(255,255,255,0.7);
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--bg-dark), var(--bg-light));
-            color: var(--text);
-            height: 100vh;
-            overflow: hidden;
+            --hover: rgba(108,92,231,0.2);
         }
 
         .page {
             display: none;
             width: 100%;
             height: 100%;
+            animation: fadeIn 0.5s ease;
         }
-
+        
         .page.active {
             display: block;
         }
@@ -54,6 +90,9 @@
             border-radius: 20px;
             padding: 40px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.6s ease;
+            border: 1px solid rgba(183,123,255,0.3);
         }
 
         .logo {
@@ -61,8 +100,19 @@
             margin-bottom: 30px;
         }
 
-        .logo-icon { font-size: 48px; }
-        .logo h1 { color: var(--primary); font-size: 32px; }
+        .logo-icon {
+            font-size: 48px;
+            animation: pulse 2s infinite;
+        }
+        
+        .logo h1 {
+            color: var(--primary);
+            font-size: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
 
         .auth-tabs {
             display: flex;
@@ -78,6 +128,12 @@
             color: var(--text);
             cursor: pointer;
             border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-btn:hover {
+            background: rgba(183,123,255,0.3);
+            transform: translateY(-2px);
         }
 
         .tab-btn.active {
@@ -88,8 +144,9 @@
 
         .auth-form {
             display: none;
+            animation: fadeIn 0.4s ease;
         }
-
+        
         .auth-form.active {
             display: block;
         }
@@ -102,6 +159,13 @@
             border: 1px solid rgba(183,123,255,0.3);
             border-radius: 10px;
             color: var(--text);
+            transition: all 0.3s ease;
+        }
+        
+        .auth-form input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            transform: scale(1.02);
         }
 
         .auth-form button {
@@ -112,11 +176,28 @@
             border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .auth-form button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,255,170,0.3);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--primary);
+            border-top-color: var(--secondary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
 
         .app-container {
             display: flex;
             height: 100vh;
+            animation: fadeIn 0.5s ease;
         }
 
         .sidebar {
@@ -125,6 +206,8 @@
             border-right: 1px solid rgba(183,123,255,0.2);
             display: flex;
             flex-direction: column;
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.4s ease;
         }
 
         .user-info {
@@ -134,6 +217,12 @@
             align-items: center;
             gap: 12px;
             cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .user-info:hover {
+            background: var(--hover);
+            transform: translateX(5px);
         }
 
         .avatar {
@@ -147,6 +236,12 @@
             font-size: 20px;
             font-weight: bold;
             cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .avatar:hover {
+            transform: scale(1.1) rotate(5deg);
         }
 
         .avatar-img {
@@ -172,24 +267,46 @@
             padding: 10px;
             background: rgba(255,255,255,0.1);
             border: 1px solid rgba(183,123,255,0.3);
-            border-radius: 10px;
+            border-radius: 25px;
             color: var(--text);
+            transition: all 0.3s ease;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            padding-left: 20px;
         }
 
         .chats-list {
             flex: 1;
             overflow-y: auto;
         }
+        
+        .chats-list::-webkit-scrollbar {
+            width: 5px;
+        }
+        
+        .chats-list::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .chats-list::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 5px;
+        }
 
         .chat-item {
             padding: 15px;
             cursor: pointer;
-            transition: 0.3s;
+            transition: all 0.3s ease;
             border-bottom: 1px solid rgba(183,123,255,0.1);
+            animation: fadeIn 0.3s ease;
         }
 
         .chat-item:hover {
-            background: rgba(183,123,255,0.1);
+            background: var(--hover);
+            transform: translateX(5px);
         }
 
         .chat-item.active {
@@ -211,6 +328,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
+            animation: fadeIn 0.4s ease;
         }
 
         .chat-header {
@@ -231,6 +349,12 @@
             font-size: 20px;
             cursor: pointer;
             margin-left: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-actions button:hover {
+            color: var(--secondary);
+            transform: scale(1.2);
         }
 
         .messages-container {
@@ -241,22 +365,43 @@
             flex-direction: column;
             gap: 10px;
         }
+        
+        .messages-container::-webkit-scrollbar {
+            width: 5px;
+        }
+        
+        .messages-container::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: var(--secondary);
+            border-radius: 5px;
+        }
 
         .message {
             max-width: 60%;
             padding: 10px 15px;
             border-radius: 15px;
+            animation: messageAppear 0.3s ease;
+            transition: all 0.3s ease;
+        }
+        
+        .message:hover {
+            transform: scale(1.02);
         }
 
         .message.own {
             align-self: flex-end;
             background: linear-gradient(135deg, var(--secondary), #00cc88);
             color: var(--bg-dark);
+            border-bottom-right-radius: 5px;
         }
 
         .message.other {
             align-self: flex-start;
             background: rgba(183,123,255,0.2);
+            border-bottom-left-radius: 5px;
         }
 
         .message-sender {
@@ -273,6 +418,11 @@
             border-radius: 10px;
             margin-top: 5px;
             cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .message-image:hover, .message-video:hover {
+            transform: scale(1.05);
         }
 
         .message-audio {
@@ -291,6 +441,7 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            animation: fadeIn 0.3s ease;
         }
 
         .modal.active {
@@ -305,6 +456,7 @@
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
+            animation: fadeIn 0.4s ease;
         }
 
         .modal-content h3 {
@@ -320,6 +472,13 @@
             border: 1px solid rgba(183,123,255,0.3);
             border-radius: 10px;
             color: var(--text);
+            transition: all 0.3s ease;
+        }
+        
+        .modal-content input:focus, .modal-content textarea:focus {
+            outline: none;
+            border-color: var(--secondary);
+            transform: scale(1.02);
         }
 
         .modal-content button {
@@ -329,6 +488,12 @@
             border-radius: 10px;
             cursor: pointer;
             margin-right: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .modal-content button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,255,170,0.3);
         }
 
         .media-viewer {
@@ -342,6 +507,7 @@
             justify-content: center;
             align-items: center;
             z-index: 1100;
+            animation: fadeIn 0.3s ease;
         }
 
         .media-viewer.active {
@@ -351,6 +517,7 @@
         .media-viewer img, .media-viewer video {
             max-width: 90%;
             max-height: 90%;
+            animation: fadeIn 0.4s ease;
         }
 
         .close-media {
@@ -360,24 +527,12 @@
             font-size: 40px;
             cursor: pointer;
             color: white;
+            transition: all 0.3s ease;
         }
-
-        .settings-section {
-            margin-bottom: 20px;
-        }
-
-        .settings-section label {
-            display: block;
-            margin-bottom: 10px;
-        }
-
-        .settings-section select {
-            width: 100%;
-            padding: 10px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(183,123,255,0.3);
-            border-radius: 10px;
-            color: var(--text);
+        
+        .close-media:hover {
+            transform: rotate(90deg);
+            color: var(--secondary);
         }
 
         .message-input-area {
@@ -385,6 +540,7 @@
             background: rgba(26, 11, 46, 0.95);
             display: flex;
             gap: 10px;
+            border-top: 1px solid rgba(183,123,255,0.2);
         }
 
         .message-input-area input {
@@ -394,6 +550,13 @@
             border: 1px solid rgba(183,123,255,0.3);
             border-radius: 25px;
             color: var(--text);
+            transition: all 0.3s ease;
+        }
+        
+        .message-input-area input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            padding-left: 20px;
         }
 
         .message-input-area button {
@@ -403,34 +566,17 @@
             border-radius: 25px;
             font-weight: bold;
             cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .message-input-area button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,255,170,0.3);
         }
     </style>
 </head>
 <body class="theme-purple-green">
-    <div id="login-page" class="page active">
-        <div class="auth-container">
-            <div class="logo">
-                <div class="logo-icon">💜💚</div>
-                <h1>Potatuika 2.0</h1>
-            </div>
-            <div class="auth-tabs">
-                <button class="tab-btn active" data-tab="login">Вход</button>
-                <button class="tab-btn" data-tab="register">Регистрация</button>
-            </div>
-            <div id="login-form" class="auth-form active">
-                <input type="text" id="login-username" placeholder="@username">
-                <input type="password" id="login-password" placeholder="Пароль">
-                <button id="login-btn">Войти</button>
-            </div>
-            <div id="register-form" class="auth-form">
-                <input type="text" id="reg-username" placeholder="username (без @)">
-                <input type="text" id="reg-displayname" placeholder="Отображаемое имя">
-                <input type="password" id="reg-password" placeholder="Пароль">
-                <button id="register-btn">Создать аккаунт</button>
-            </div>
-        </div>
-    </div>
-
+    <div id="login-page" class="page active"></div>
     <div id="app-page" class="page">
         <div class="app-container">
             <div class="sidebar">
@@ -442,7 +588,7 @@
                     </div>
                 </div>
                 <div class="search-box">
-                    <input type="text" id="search-input" placeholder="🔍 Поиск по username">
+                    <input type="text" id="search-input" placeholder="🔍 Поиск пользователя...">
                 </div>
                 <div class="chats-list" id="chats-list"></div>
             </div>
@@ -459,7 +605,7 @@
                 <div class="message-input-area">
                     <button id="file-btn">📎</button>
                     <input type="text" id="message-input" placeholder="Введите сообщение...">
-                    <button id="send-btn">Отправить</button>
+                    <button id="send-btn">Отправить ➤</button>
                 </div>
             </div>
         </div>
@@ -467,49 +613,49 @@
 
     <div id="profile-modal" class="modal">
         <div class="modal-content">
-            <h3>Редактировать профиль</h3>
+            <h3>✏️ Редактировать профиль</h3>
             <input type="text" id="profile-displayname" placeholder="Отображаемое имя">
             <textarea id="profile-bio" rows="3" placeholder="О себе"></textarea>
-            <button id="upload-avatar-btn">Загрузить аватарку</button>
+            <button id="upload-avatar-btn">📸 Загрузить аватарку</button>
             <input type="file" id="avatar-input" accept="image/*" style="display: none;">
             <br><br>
-            <button id="save-profile">Сохранить</button>
-            <button onclick="closeModal('profile-modal')">Отмена</button>
+            <button id="save-profile">💾 Сохранить</button>
+            <button onclick="closeModal('profile-modal')">❌ Отмена</button>
         </div>
     </div>
 
     <div id="settings-modal" class="modal">
         <div class="modal-content">
-            <h3>Настройки</h3>
+            <h3>⚙️ Настройки</h3>
             <div class="settings-section">
-                <label>Тема</label>
+                <label>🎨 Тема</label>
                 <select id="theme-select">
-                    <option value="purple-green">Фиолетово-зеленая</option>
-                    <option value="dark">Темная</option>
+                    <option value="purple-green">💜 Фиолетово-зеленая</option>
+                    <option value="dark">🌙 Темная</option>
                 </select>
             </div>
-            <button onclick="saveSettings()">Сохранить</button>
-            <button onclick="closeModal('settings-modal')">Закрыть</button>
+            <button onclick="saveSettings()">💾 Сохранить</button>
+            <button onclick="closeModal('settings-modal')">❌ Закрыть</button>
         </div>
     </div>
 
     <div id="group-modal" class="modal">
         <div class="modal-content">
-            <h3>Создать группу</h3>
+            <h3>👥 Создать группу</h3>
             <input type="text" id="group-name" placeholder="Название группы">
             <textarea id="group-desc" placeholder="Описание"></textarea>
-            <button id="create-group-submit">Создать</button>
-            <button onclick="closeModal('group-modal')">Отмена</button>
+            <button id="create-group-submit">✨ Создать</button>
+            <button onclick="closeModal('group-modal')">❌ Отмена</button>
         </div>
     </div>
 
     <div id="channel-modal" class="modal">
         <div class="modal-content">
-            <h3>Создать канал</h3>
+            <h3>📢 Создать канал</h3>
             <input type="text" id="channel-name" placeholder="Название канала">
             <textarea id="channel-desc" placeholder="Описание"></textarea>
-            <button id="create-channel-submit">Создать</button>
-            <button onclick="closeModal('channel-modal')">Отмена</button>
+            <button id="create-channel-submit">✨ Создать</button>
+            <button onclick="closeModal('channel-modal')">❌ Отмена</button>
         </div>
     </div>
 
@@ -530,6 +676,7 @@
         function openModal(id) {
             document.getElementById(id).classList.add('active');
         }
+        
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
         }
@@ -589,7 +736,111 @@
             return name;
         }
 
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showLoading() {
+            const loginPage = document.getElementById('login-page');
+            loginPage.innerHTML = `
+                <div class="auth-container" style="text-align: center;">
+                    <div class="logo">
+                        <div class="logo-icon">💜💚</div>
+                        <h1>Potatuika 2.0</h1>
+                    </div>
+                    <div class="loading" style="margin: 20px auto;"></div>
+                    <p style="margin-top: 20px;">Загрузка...</p>
+                </div>
+            `;
+            loginPage.classList.add('active');
+        }
+
+        function restoreLoginForm() {
+            const loginPage = document.getElementById('login-page');
+            loginPage.innerHTML = `
+                <div class="auth-container">
+                    <div class="logo">
+                        <div class="logo-icon">💜💚</div>
+                        <h1>Potatuika 2.0</h1>
+                    </div>
+                    <div class="auth-tabs">
+                        <button class="tab-btn active" data-tab="login">Вход</button>
+                        <button class="tab-btn" data-tab="register">Регистрация</button>
+                    </div>
+                    <div id="login-form" class="auth-form active">
+                        <input type="text" id="login-username" placeholder="username (без @)">
+                        <input type="password" id="login-password" placeholder="Пароль">
+                        <button id="login-btn">Войти</button>
+                    </div>
+                    <div id="register-form" class="auth-form">
+                        <input type="text" id="reg-username" placeholder="username (без @)">
+                        <input type="text" id="reg-displayname" placeholder="Отображаемое имя">
+                        <input type="password" id="reg-password" placeholder="Пароль">
+                        <button id="register-btn">Создать аккаунт</button>
+                    </div>
+                </div>
+            `;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.dataset.tab;
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+                    document.getElementById(`${tab}-form`).classList.add('active');
+                });
+            });
+            
+            document.getElementById('register-btn')?.addEventListener('click', async () => {
+                let username = document.getElementById('reg-username').value;
+                const displayName = document.getElementById('reg-displayname').value;
+                const password = document.getElementById('reg-password').value;
+                username = cleanUsername(username);
+                
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, displayName })
+                });
+                
+                if (res.ok) {
+                    alert('✅ Регистрация успешна! Теперь войдите');
+                    document.querySelector('[data-tab="login"]').click();
+                } else {
+                    const err = await res.json();
+                    alert('❌ Ошибка: ' + err.error);
+                }
+            });
+            
+            document.getElementById('login-btn')?.addEventListener('click', async () => {
+                let username = document.getElementById('login-username').value;
+                const password = document.getElementById('login-password').value;
+                username = cleanUsername(username);
+                
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    currentUser = data.user;
+                    token = data.token;
+                    localStorage.setItem('potatuika_token', token);
+                    connectSocket();
+                } else {
+                    alert('❌ Неверный логин или пароль');
+                }
+            });
+        }
+
+        // Запуск проверки токена
         if (token) {
+            showLoading();
             fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -600,76 +851,45 @@
                     token = data.token;
                     localStorage.setItem('potatuika_token', token);
                     connectSocket();
+                } else {
+                    restoreLoginForm();
                 }
+            }).catch(() => {
+                restoreLoginForm();
             });
+        } else {
+            restoreLoginForm();
         }
-
-        document.getElementById('register-btn')?.addEventListener('click', async () => {
-            let username = document.getElementById('reg-username').value;
-            const displayName = document.getElementById('reg-displayname').value;
-            const password = document.getElementById('reg-password').value;
-            
-            username = cleanUsername(username);
-            
-            const res = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, displayName })
-            });
-            
-            if (res.ok) {
-                alert('Регистрация успешна! Теперь войдите');
-                document.querySelector('[data-tab="login"]').click();
-            } else {
-                const err = await res.json();
-                alert('Ошибка: ' + err.error);
-            }
-        });
-
-        document.getElementById('login-btn')?.addEventListener('click', async () => {
-            let username = document.getElementById('login-username').value;
-            const password = document.getElementById('login-password').value;
-            
-            username = cleanUsername(username);
-            
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            
-            if (res.ok) {
-                const data = await res.json();
-                currentUser = data.user;
-                token = data.token;
-                localStorage.setItem('potatuika_token', token);
-                connectSocket();
-            } else {
-                alert('Неверный логин или пароль');
-            }
-        });
 
         function connectSocket() {
             socket = io({ auth: { token } });
             
+            socket.on('connect', () => {
+                console.log('✅ Соединение установлено');
+            });
+            
             socket.on('init', (data) => {
                 currentUser = data.user;
+                
                 document.getElementById('user-displayname').textContent = currentUser.displayName;
                 document.getElementById('user-username').textContent = '@' + currentUser.username;
-                if (currentUser.avatar) {
-                    document.getElementById('user-avatar').innerHTML = `<img src="${currentUser.avatar}" class="avatar-img">`;
+                
+                if (currentUser.avatar && currentUser.avatar !== 'null') {
+                    document.getElementById('user-avatar').innerHTML = `<img src="${currentUser.avatar}?t=${Date.now()}" class="avatar-img">`;
+                } else {
+                    document.getElementById('user-avatar').innerHTML = '👤';
                 }
+                
                 document.getElementById('login-page').classList.remove('active');
                 document.getElementById('app-page').classList.add('active');
+                
                 renderChats(data.chats);
             });
             
             socket.on('new_message', (message) => {
-                if (currentChat && message.to === currentChat.id) {
+                if (currentChat && (message.to === currentChat.id || message.from === currentChat.id)) {
                     addMessageToChat(message);
                 }
-                // Обновляем список чатов
-                socket.emit('get_chats');
             });
             
             socket.on('chat_history', (data) => {
@@ -685,7 +905,7 @@
             container.innerHTML = '';
             
             if (!chats || chats.length === 0) {
-                container.innerHTML = '<div style="padding: 20px; text-align: center; color: gray;">Нет чатов<br>Найдите пользователя через поиск</div>';
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: gray;">📭 Нет чатов<br>🔍 Найдите пользователя через поиск</div>';
                 return;
             }
             
@@ -717,7 +937,7 @@
                     div.classList.add('active');
                 };
                 
-                div.innerHTML = `<div class="chat-name">${icon} ${displayName}</div><div class="chat-preview">${chat.lastMessage ? (chat.lastMessage.text || '📎 Файл') : 'Новый чат'}</div>`;
+                div.innerHTML = `<div class="chat-name">${icon} ${displayName}</div><div class="chat-preview">${chat.lastMessage ? (chat.lastMessage.text || '📎 Файл') : '✨ Новый чат'}</div>`;
                 container.appendChild(div);
             });
         }
@@ -729,9 +949,7 @@
             div.className = `message ${isOwn ? 'own' : 'other'}`;
             
             let content = '';
-            if (!isOwn && message.type === 'dm') {
-                content += `<div class="message-sender">${message.from}</div>`;
-            } else if (!isOwn && (message.type === 'group' || message.type === 'channel')) {
+            if (!isOwn && (message.type === 'dm' || message.type === 'group' || message.type === 'channel')) {
                 content += `<div class="message-sender">${message.from}</div>`;
             }
             
@@ -755,13 +973,6 @@
             div.innerHTML = content;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
-        }
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
 
         document.getElementById('send-btn')?.addEventListener('click', () => {
@@ -823,7 +1034,7 @@
             if (data.success) {
                 currentUser = data.user;
                 document.getElementById('user-displayname').textContent = currentUser.displayName;
-                alert('Профиль обновлен!');
+                alert('✅ Профиль обновлен!');
                 closeModal('profile-modal');
             }
         });
@@ -834,21 +1045,32 @@
 
         document.getElementById('avatar-input')?.addEventListener('change', async (e) => {
             const file = e.target.files[0];
+            if (!file) return;
+            
             const formData = new FormData();
-            formData.append('avatar', file);
-            const res = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-            await fetch('/api/update-profile', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, avatar: data.url })
-            });
-            currentUser.avatar = data.url;
-            document.getElementById('user-avatar').innerHTML = `<img src="${data.url}" class="avatar-img">`;
-            alert('Аватарка обновлена!');
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                const updateRes = await fetch('/api/update-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, avatar: data.url })
+                });
+                const updateData = await updateRes.json();
+                if (updateData.success) {
+                    currentUser.avatar = data.url;
+                    document.getElementById('user-avatar').innerHTML = `<img src="${data.url}?t=${Date.now()}" class="avatar-img">`;
+                    alert('✅ Аватарка обновлена!');
+                    closeModal('profile-modal');
+                }
+            } catch (error) {
+                alert('❌ Ошибка загрузки');
+            }
         });
 
         document.getElementById('settings-btn')?.addEventListener('click', () => {
@@ -870,7 +1092,7 @@
             });
             const data = await res.json();
             if (data.success) {
-                alert('Группа создана!');
+                alert('✅ Группа создана!');
                 closeModal('group-modal');
                 location.reload();
             }
@@ -890,7 +1112,7 @@
             });
             const data = await res.json();
             if (data.success) {
-                alert('Канал создан!');
+                alert('✅ Канал создан!');
                 closeModal('channel-modal');
                 location.reload();
             }
@@ -919,16 +1141,6 @@
                     container.appendChild(div);
                 });
             }
-        });
-
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const tab = btn.dataset.tab;
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
-                document.getElementById(`${tab}-form`).classList.add('active');
-            });
         });
     </script>
 </body>

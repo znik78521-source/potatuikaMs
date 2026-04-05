@@ -48,7 +48,6 @@ let groups = loadData('groups.json');
 let channels = loadData('channels.json');
 let sessions = loadData('sessions.json');
 
-// Сохранение при изменении
 const saveAll = () => {
   saveData('users.json', users);
   saveData('messages.json', messages);
@@ -69,7 +68,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
 function cleanUsername(username) {
   if (!username) return '';
   let clean = username;
@@ -82,7 +80,6 @@ function cleanUsername(username) {
 // ===== API =====
 app.post('/api/register', async (req, res) => {
   const { username, password, displayName } = req.body;
-  
   const cleanUser = cleanUsername(username);
   
   if (users[cleanUser]) {
@@ -156,7 +153,7 @@ app.post('/api/update-profile', async (req, res) => {
 });
 
 app.post('/api/create-group', (req, res) => {
-  const { token, name, description, members } = req.body;
+  const { token, name, description } = req.body;
   const creator = sessions[token];
   
   const groupId = uuidv4();
@@ -167,7 +164,7 @@ app.post('/api/create-group', (req, res) => {
     description: description || '',
     avatar: null,
     creator,
-    members: [creator, ...(members || [])],
+    members: [creator],
     admins: [creator],
     createdAt: Date.now()
   };
@@ -176,7 +173,7 @@ app.post('/api/create-group', (req, res) => {
 });
 
 app.post('/api/create-channel', (req, res) => {
-  const { token, name, description, isPrivate } = req.body;
+  const { token, name, description } = req.body;
   const creator = sessions[token];
   
   const channelId = uuidv4();
@@ -188,7 +185,6 @@ app.post('/api/create-channel', (req, res) => {
     avatar: null,
     creator,
     subscribers: [creator],
-    isPrivate: isPrivate || false,
     createdAt: Date.now()
   };
   saveAll();
@@ -202,12 +198,30 @@ app.get('/api/search', (req, res) => {
   const results = Object.values(users)
     .filter(u => u.username.toLowerCase().includes(cleanQuery) || 
                   u.displayName.toLowerCase().includes(cleanQuery))
-    .map(u => ({ 
-      username: u.username,
-      displayName: u.displayName, 
-      avatar: u.avatar 
-    }));
+    .map(u => ({ username: u.username, displayName: u.displayName, avatar: u.avatar }));
   res.json(results);
+});
+
+app.get('/api/chats', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const username = sessions[token];
+  
+  if (!username) return res.json([]);
+  
+  const userGroups = Object.values(groups).filter(g => g.members.includes(username));
+  const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
+  const userDMs = [];
+  
+  Object.keys(messages).forEach(chatId => {
+    if (chatId.includes(username)) {
+      const other = chatId.replace(username, '').replace('_', '');
+      if (other && users[other]) {
+        userDMs.push({ id: chatId, type: 'dm', with: other });
+      }
+    }
+  });
+  
+  res.json([...userDMs, ...userGroups, ...userChannels]);
 });
 
 app.get('*', (req, res) => {
@@ -235,17 +249,11 @@ io.on('connection', (socket) => {
   const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
   const userDMs = [];
   
-  // Собираем личные диалоги
   Object.keys(messages).forEach(chatId => {
     if (chatId.includes(username)) {
-      const other = chatId.replace(username, '').replace('_', '');
+      const other = chatId.replace(username, '').replace(/_/g, '');
       if (other && users[other]) {
-        userDMs.push({ 
-          id: chatId, 
-          type: 'dm', 
-          with: other,
-          lastMessage: messages[chatId][messages[chatId].length - 1]
-        });
+        userDMs.push({ id: chatId, type: 'dm', with: other });
       }
     }
   });
@@ -255,15 +263,15 @@ io.on('connection', (socket) => {
     chats: [...userDMs, ...userGroups, ...userChannels]
   });
   
-  // Отправка сообщения
+  // Отправка сообщения - ИСПРАВЛЕНО!
   socket.on('send_message', (data) => {
     const { to, type, text, attachments } = data;
-    const cleanTo = cleanUsername(to);
+    console.log(`📨 ${username} -> ${to}: ${text}`);
     
     const message = {
       id: uuidv4(),
       from: username,
-      to: cleanTo,
+      to: to,
       text: text,
       attachments: attachments || [],
       timestamp: Date.now(),
@@ -271,8 +279,9 @@ io.on('connection', (socket) => {
     };
     
     let chatId;
+    
     if (type === 'dm') {
-      chatId = [username, cleanTo].sort().join('_');
+      chatId = [username, to].sort().join('_');
       if (!messages[chatId]) messages[chatId] = [];
       messages[chatId].push(message);
       saveAll();
@@ -281,7 +290,7 @@ io.on('connection', (socket) => {
       socket.emit('new_message', message);
       
       // Отправляем получателю
-      const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === cleanTo);
+      const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === to);
       if (recipientSocket) {
         recipientSocket.emit('new_message', message);
       }
