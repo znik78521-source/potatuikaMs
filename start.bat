@@ -1,6 +1,6 @@
 @echo off
 title Potatuika Messenger
-color 0A
+color D
 
 cd /d F:\potatuika
 

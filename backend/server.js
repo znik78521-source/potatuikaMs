@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -18,13 +21,14 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use('/uploads', express.static('uploads'));
 app.use('/avatars', express.static('avatars'));
+app.use('/stickers', express.static('stickers'));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Создаем папки
-['uploads', 'avatars', 'data'].forEach(dir => {
+['uploads', 'avatars', 'stickers', 'data', 'voice'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 });
 
@@ -46,6 +50,7 @@ let messages = loadData('messages.json');
 let groups = loadData('groups.json');
 let channels = loadData('channels.json');
 let sessions = loadData('sessions.json');
+let stickers = loadData('stickers.json');
 
 const saveAll = () => {
   saveData('users.json', users);
@@ -53,13 +58,17 @@ const saveAll = () => {
   saveData('groups.json', groups);
   saveData('channels.json', channels);
   saveData('sessions.json', sessions);
+  saveData('stickers.json', stickers);
   console.log('💾 Данные сохранены');
 };
 
 // Настройка загрузки файлов
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const folder = file.fieldname === 'avatar' ? 'avatars' : 'uploads';
+    let folder = 'uploads';
+    if (file.fieldname === 'avatar') folder = 'avatars';
+    if (file.fieldname === 'sticker') folder = 'stickers';
+    if (file.fieldname === 'voice') folder = 'voice';
     cb(null, folder);
   },
   filename: (req, file, cb) => {
@@ -121,7 +130,6 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { username, password, token: savedToken } = req.body;
   
-  // Авто-вход по токену
   if (savedToken && sessions[savedToken]) {
     const usernameFromToken = sessions[savedToken];
     if (users[usernameFromToken]) {
@@ -132,7 +140,6 @@ app.post('/api/login', async (req, res) => {
     }
   }
   
-  // Обычный вход
   const cleanUser = cleanUsername(username);
   const user = users[cleanUser];
   
@@ -150,11 +157,124 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
-  const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : 'uploads'}/${req.file.filename}`;
+  const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : req.file.fieldname === 'sticker' ? 'stickers' : req.file.fieldname === 'voice' ? 'voice' : 'uploads'}/${req.file.filename}`;
   const type = req.file.mimetype.startsWith('image/') ? 'image' : 
                 req.file.mimetype.startsWith('video/') ? 'video' : 
-                req.file.mimetype === 'audio/mpeg' ? 'audio' : 'file';
+                req.file.mimetype === 'audio/mpeg' || req.file.fieldname === 'voice' ? 'audio' : 'file';
   res.json({ url: fileUrl, type, name: req.file.originalname });
+});
+
+app.post('/api/upload-voice', upload.single('voice'), (req, res) => {
+  const fileUrl = `/voice/${req.file.filename}`;
+  res.json({ url: fileUrl, duration: req.body.duration || 0 });
+});
+
+app.post('/api/create-sticker', upload.single('sticker'), (req, res) => {
+  const { token, name } = req.body;
+  const username = sessions[token];
+  
+  if (!username) return res.status(401).json({ error: 'Не авторизован' });
+  
+  const stickerId = uuidv4();
+  const stickerUrl = `/stickers/${req.file.filename}`;
+  
+  if (!stickers[username]) stickers[username] = [];
+  stickers[username].push({
+    id: stickerId,
+    name: name || 'sticker',
+    url: stickerUrl,
+    createdAt: Date.now()
+  });
+  saveAll();
+  
+  res.json({ success: true, sticker: { id: stickerId, name: name || 'sticker', url: stickerUrl } });
+});
+
+app.get('/api/get-stickers', (req, res) => {
+  const { token } = req.query;
+  const username = sessions[token];
+  
+  if (!username) return res.json([]);
+  
+  const userStickers = stickers[username] || [];
+  const globalStickers = stickers['global'] || [];
+  
+  res.json([...userStickers, ...globalStickers]);
+});
+
+app.delete('/api/delete-sticker', (req, res) => {
+  const { token, stickerId } = req.body;
+  const username = sessions[token];
+  
+  if (stickers[username]) {
+    stickers[username] = stickers[username].filter(s => s.id !== stickerId);
+    saveAll();
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Стикер не найден' });
+  }
+});
+
+app.post('/api/edit-message', (req, res) => {
+  const { token, messageId, chatId, newText } = req.body;
+  const username = sessions[token];
+  
+  if (messages[chatId]) {
+    const message = messages[chatId].find(m => m.id === messageId);
+    if (message && message.from === username) {
+      message.text = newText;
+      message.edited = true;
+      message.editedAt = Date.now();
+      saveAll();
+      res.json({ success: true });
+      io.emit('message_edited', { chatId, messageId, newText });
+    } else {
+      res.status(403).json({ error: 'Нельзя редактировать чужое сообщение' });
+    }
+  }
+});
+
+app.post('/api/delete-message', (req, res) => {
+  const { token, messageId, chatId, forEveryone } = req.body;
+  const username = sessions[token];
+  
+  if (messages[chatId]) {
+    const messageIndex = messages[chatId].findIndex(m => m.id === messageId);
+    if (messageIndex !== -1) {
+      const message = messages[chatId][messageIndex];
+      
+      if (message.from === username || forEveryone) {
+        if (forEveryone) {
+          messages[chatId].splice(messageIndex, 1);
+        } else {
+          message.deletedFor = message.deletedFor || [];
+          message.deletedFor.push(username);
+          message.text = '[Сообщение удалено]';
+          message.attachments = [];
+        }
+        saveAll();
+        res.json({ success: true });
+        io.emit('message_deleted', { chatId, messageId, forEveryone });
+      } else {
+        res.status(403).json({ error: 'Нельзя удалить чужое сообщение' });
+      }
+    }
+  }
+});
+
+app.post('/api/pin-message', (req, res) => {
+  const { token, messageId, chatId } = req.body;
+  const username = sessions[token];
+  
+  if (messages[chatId]) {
+    const message = messages[chatId].find(m => m.id === messageId);
+    if (message) {
+      message.pinned = !message.pinned;
+      saveAll();
+      res.json({ success: true, pinned: message.pinned });
+      io.emit('message_pinned', { chatId, messageId, pinned: message.pinned });
+    }
+  }
 });
 
 app.post('/api/update-profile', async (req, res) => {
@@ -187,6 +307,8 @@ app.post('/api/create-group', (req, res) => {
     creator,
     members: [creator],
     admins: [creator],
+    moderators: [],
+    pinnedMessage: null,
     createdAt: Date.now()
   };
   saveAll();
@@ -214,13 +336,12 @@ app.post('/api/create-channel', (req, res) => {
 
 app.post('/api/invite-to-group', async (req, res) => {
   const { token, groupId, username } = req.body;
-  const session = await Session.findOne({ token });
-  if (!session) return res.status(401).json({ error: 'Не авторизован' });
+  const inviter = sessions[token];
   
   const group = groups[groupId];
   if (!group) return res.status(404).json({ error: 'Группа не найдена' });
   
-  if (!group.admins.includes(session.username)) {
+  if (!group.admins.includes(inviter)) {
     return res.status(403).json({ error: 'Только админ может приглашать' });
   }
   
@@ -271,6 +392,15 @@ app.get('/api/search', (req, res) => {
   res.json(results);
 });
 
+app.get('/api/search-messages', (req, res) => {
+  const { chatId, q } = req.query;
+  const chatMessages = messages[chatId] || [];
+  const results = chatMessages.filter(m => 
+    m.text && m.text.toLowerCase().includes(q.toLowerCase())
+  );
+  res.json(results);
+});
+
 app.get('/api/user-status/:username', (req, res) => {
   const user = users[req.params.username];
   if (user) {
@@ -304,7 +434,6 @@ io.on('connection', (socket) => {
   const username = socket.username;
   console.log(`✅ ${username} подключился`);
   
-  // Обновляем статус пользователя
   if (users[username] && !users[username].isBot) {
     users[username].online = true;
     users[username].lastSeen = Date.now();
@@ -318,7 +447,6 @@ io.on('connection', (socket) => {
     });
   }
   
-  // Отправляем все чаты пользователя
   const userGroups = Object.values(groups).filter(g => g.members.includes(username));
   const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
   const userDMs = [];
@@ -339,10 +467,10 @@ io.on('connection', (socket) => {
   
   socket.emit('init', {
     user: users[username],
-    chats: [...userDMs, ...userGroups, ...userChannels]
+    chats: [...userDMs, ...userGroups, ...userChannels],
+    stickers: stickers[username] || []
   });
   
-  // Отправляем статусы всех пользователей
   const allStatuses = {};
   Object.keys(users).forEach(u => {
     if (!users[u].isBot) {
@@ -357,7 +485,7 @@ io.on('connection', (socket) => {
   
   // Отправка сообщения
   socket.on('send_message', (data) => {
-    const { to, type, text, attachments } = data;
+    const { to, type, text, attachments, replyTo } = data;
     console.log(`📨 Сообщение от ${username} для ${to} (${type}): "${text}"`);
     
     const message = {
@@ -366,9 +494,12 @@ io.on('connection', (socket) => {
       to: to,
       text: text,
       attachments: attachments || [],
+      replyTo: replyTo || null,
       timestamp: Date.now(),
       type: type,
-      read: false
+      read: false,
+      edited: false,
+      pinned: false
     };
     
     let chatId;
@@ -422,14 +553,11 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Загрузка истории
   socket.on('load_chat', ({ chatId }) => {
     const history = messages[chatId] || [];
-    console.log(`📜 История чата ${chatId}: ${history.length} сообщений`);
     socket.emit('chat_history', { chatId, messages: history });
   });
   
-  // Получение статуса пользователя
   socket.on('get_user_status', ({ username: targetUsername }) => {
     const user = users[targetUsername];
     if (user) {
@@ -442,9 +570,20 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Печатает...
   socket.on('typing', ({ chatId, isTyping }) => {
     socket.broadcast.emit('user_typing', { username, chatId, isTyping });
+  });
+  
+  socket.on('mark_read', ({ chatId }) => {
+    if (messages[chatId]) {
+      messages[chatId].forEach(msg => {
+        if (msg.to === username && !msg.read) {
+          msg.read = true;
+        }
+      });
+      saveAll();
+      socket.emit('messages_read', { chatId });
+    }
   });
   
   socket.on('disconnect', () => {
@@ -464,12 +603,19 @@ io.on('connection', (socket) => {
   });
 });
 
-// Авто-сохранение каждые 10 секунд
 setInterval(() => saveAll(), 10000);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log('💜💚 POTATUIKA ЗАПУЩЕН!');
+  console.log('💜💚 POTATUIKA MEGA-АПДЕЙД ЗАПУЩЕН!');
   console.log(`📍 http://localhost:${PORT}`);
-  console.log('📝 Тестовые аккаунты: alex/123  или  maria/123');
+  console.log('✨ Новые фичи:');
+  console.log('  📝 Редактирование сообщений (правый клик)');
+  console.log('  🗑️ Удаление сообщений');
+  console.log('  📌 Закрепление сообщений');
+  console.log('  😀 Эмодзи-пикер');
+  console.log('  🎨 Авторские стикеры');
+  console.log('  🎤 Голосовые сообщения');
+  console.log('  🔍 Поиск по чату');
+  console.log('  ↩️ Ответ на сообщение');
 });
