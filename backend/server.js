@@ -26,13 +26,14 @@ app.use('/uploads', express.static('uploads'));
 app.use('/avatars', express.static('avatars'));
 app.use('/stickers', express.static('stickers'));
 app.use('/voice', express.static('voice'));
-app.use('/music', express.static('music'));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-['uploads', 'avatars', 'stickers', 'data', 'voice', 'music'].forEach(dir => {
+// Создаем папки
+['uploads', 'avatars', 'stickers', 'data', 'voice'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 });
 
+// ===== ПОСТОЯННОЕ ХРАНЕНИЕ =====
 const DATA_DIR = './data';
 const loadData = (filename) => {
   try {
@@ -52,10 +53,6 @@ let channels = loadData('channels.json');
 let sessions = loadData('sessions.json');
 let stickers = loadData('stickers.json');
 let polls = loadData('polls.json');
-let scheduledMessages = loadData('scheduled.json');
-let musicPlaylists = loadData('playlists.json');
-let cloudFiles = loadData('cloud.json');
-let games = loadData('games.json');
 
 const saveAll = () => {
   saveData('users.json', users);
@@ -65,20 +62,16 @@ const saveAll = () => {
   saveData('sessions.json', sessions);
   saveData('stickers.json', stickers);
   saveData('polls.json', polls);
-  saveData('scheduled.json', scheduledMessages);
-  saveData('playlists.json', musicPlaylists);
-  saveData('cloud.json', cloudFiles);
-  saveData('games.json', games);
   console.log('💾 Все данные сохранены');
 };
 
+// Настройка загрузки файлов
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let folder = 'uploads';
     if (file.fieldname === 'avatar') folder = 'avatars';
     if (file.fieldname === 'sticker') folder = 'stickers';
     if (file.fieldname === 'voice') folder = 'voice';
-    if (file.fieldname === 'music') folder = 'music';
     cb(null, folder);
   },
   filename: (req, file, cb) => {
@@ -147,14 +140,14 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
-  const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : req.file.fieldname === 'sticker' ? 'stickers' : req.file.fieldname === 'voice' ? 'voice' : req.file.fieldname === 'music' ? 'music' : 'uploads'}/${req.file.filename}`;
+  const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : req.file.fieldname === 'sticker' ? 'stickers' : req.file.fieldname === 'voice' ? 'voice' : 'uploads'}/${req.file.filename}`;
   const type = req.file.mimetype.startsWith('image/') ? 'image' : 
                 req.file.mimetype.startsWith('video/') ? 'video' : 
-                req.file.mimetype === 'audio/mpeg' || req.file.fieldname === 'music' ? 'music' : 'file';
+                req.file.mimetype === 'audio/mpeg' ? 'audio' : 'file';
   res.json({ url: fileUrl, type, name: req.file.originalname });
 });
 
-// ===== ОПРОСЫ (БЕСПЛАТНО) =====
+// ===== ОПРОСЫ =====
 app.post('/api/create-poll', (req, res) => {
   const { token, chatId, question, options, isAnonymous } = req.body;
   const username = sessions[token];
@@ -164,7 +157,22 @@ app.post('/api/create-poll', (req, res) => {
     createdBy: username, isAnonymous, createdAt: Date.now(), totalVotes: 0
   };
   saveAll();
-  io.emit('new_poll', { chatId, poll: polls[pollId] });
+  
+  const pollMessage = {
+    id: uuidv4(),
+    from: 'system',
+    text: `📊 ОПРОС: ${question}`,
+    pollId: pollId,
+    pollData: polls[pollId],
+    timestamp: Date.now(),
+    type: 'poll'
+  };
+  
+  if (!messages[chatId]) messages[chatId] = [];
+  messages[chatId].push(pollMessage);
+  saveAll();
+  
+  io.to(chatId).emit('new_poll', { chatId, poll: polls[pollId], message: pollMessage });
   res.json({ success: true, pollId });
 });
 
@@ -178,193 +186,7 @@ app.post('/api/vote-poll', (req, res) => {
   poll.options[optionIndex].votes.push(username);
   poll.totalVotes++;
   saveAll();
-  io.emit('poll_update', { pollId, options: poll.options, totalVotes: poll.totalVotes });
-  res.json({ success: true });
-});
-
-// ===== ОТЛОЖЕННЫЕ СООБЩЕНИЯ =====
-app.post('/api/schedule-message', (req, res) => {
-  const { token, to, type, text, scheduleTime } = req.body;
-  const from = sessions[token];
-  const scheduledId = uuidv4();
-  scheduledMessages[scheduledId] = {
-    id: scheduledId, from, to, type, text, scheduleTime, status: 'pending'
-  };
-  saveAll();
-  res.json({ success: true, scheduledId });
-});
-
-// ===== МУЗЫКАЛЬНЫЙ ПЛЕЕР =====
-app.post('/api/create-playlist', (req, res) => {
-  const { token, name, songs } = req.body;
-  const username = sessions[token];
-  const playlistId = uuidv4();
-  if (!musicPlaylists[username]) musicPlaylists[username] = [];
-  musicPlaylists[username].push({ id: playlistId, name, songs, createdAt: Date.now() });
-  saveAll();
-  res.json({ success: true, playlistId });
-});
-
-app.get('/api/get-playlists', (req, res) => {
-  const { token } = req.query;
-  const username = sessions[token];
-  res.json(musicPlaylists[username] || []);
-});
-
-// ===== РОЛИ И ПРАВА (БЕСПЛАТНО) =====
-app.post('/api/set-role', (req, res) => {
-  const { token, groupId, targetUsername, role } = req.body;
-  const admin = sessions[token];
-  const group = groups[groupId];
-  if (!group || !group.admins.includes(admin)) return res.status(403).json({ error: 'Нет прав' });
-  const cleanTarget = cleanUsername(targetUsername);
-  if (role === 'admin') {
-    if (!group.admins.includes(cleanTarget)) group.admins.push(cleanTarget);
-  }
-  if (role === 'moderator') {
-    if (!group.moderators) group.moderators = [];
-    if (!group.moderators.includes(cleanTarget)) group.moderators.push(cleanTarget);
-  }
-  if (role === 'remove_admin') {
-    group.admins = group.admins.filter(a => a !== cleanTarget);
-  }
-  if (role === 'remove_moderator') {
-    group.moderators = group.moderators.filter(m => m !== cleanTarget);
-  }
-  saveAll();
-  res.json({ success: true });
-});
-
-// ===== КАНАЛЫ =====
-app.post('/api/post-to-channel', (req, res) => {
-  const { token, channelId, text, attachments } = req.body;
-  const username = sessions[token];
-  const channel = channels[channelId];
-  if (!channel || !channel.subscribers.includes(username)) return res.status(403).json({ error: 'Не подписан' });
-  const post = { id: uuidv4(), from: username, text, attachments, timestamp: Date.now(), views: 0 };
-  if (!channel.posts) channel.posts = [];
-  channel.posts.push(post);
-  saveAll();
-  io.emit('new_post', { channelId, post });
-  res.json({ success: true, post });
-});
-
-// ===== ССЫЛКИ-ПРИГЛАШЕНИЯ =====
-app.post('/api/create-invite', (req, res) => {
-  const { token, groupId } = req.body;
-  const username = sessions[token];
-  const group = groups[groupId];
-  if (!group || !group.members.includes(username)) return res.status(403).json({ error: 'Нет прав' });
-  const inviteLink = `${uuidv4().substring(0, 8)}`;
-  if (!group.invites) group.invites = [];
-  group.invites.push({ link: inviteLink, createdBy: username, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
-  saveAll();
-  res.json({ success: true, link: inviteLink });
-});
-
-app.post('/api/join-by-link', (req, res) => {
-  const { token, groupId, link } = req.body;
-  const username = sessions[token];
-  const group = groups[groupId];
-  const validInvite = group.invites?.find(i => i.link === link && i.expiresAt > Date.now());
-  if (!validInvite) return res.status(403).json({ error: 'Недействительная ссылка' });
-  if (!group.members.includes(username)) group.members.push(username);
-  saveAll();
-  res.json({ success: true });
-});
-
-// ===== АНОНИМНЫЙ РЕЖИМ =====
-app.post('/api/toggle-anonymous', (req, res) => {
-  const { token } = req.body;
-  const username = sessions[token];
-  users[username].anonymous = !users[username].anonymous;
-  saveAll();
-  res.json({ success: true, anonymous: users[username].anonymous });
-});
-
-// ===== СТАТИСТИКА ЧАТА =====
-app.get('/api/chat-stats', (req, res) => {
-  const { chatId } = req.query;
-  const chatMessages = messages[chatId] || [];
-  const userStats = {};
-  chatMessages.forEach(msg => {
-    if (!userStats[msg.from]) userStats[msg.from] = 0;
-    userStats[msg.from]++;
-  });
-  const hours = {};
-  chatMessages.forEach(msg => {
-    const hour = new Date(msg.timestamp).getHours();
-    hours[hour] = (hours[hour] || 0) + 1;
-  });
-  res.json({ totalMessages: chatMessages.length, userStats, hourlyStats: hours, lastActive: chatMessages[chatMessages.length - 1]?.timestamp });
-});
-
-// ===== КАСТОМНЫЕ ТЕМЫ =====
-app.post('/api/custom-theme', (req, res) => {
-  const { token, theme } = req.body;
-  const username = sessions[token];
-  users[username].customTheme = theme;
-  saveAll();
-  res.json({ success: true });
-});
-
-// ===== ОБЛАЧНОЕ ХРАНИЛИЩЕ (1 ГБ БЕСПЛАТНО) =====
-app.post('/api/cloud-upload', upload.single('file'), (req, res) => {
-  const { token } = req.body;
-  const username = sessions[token];
-  if (!cloudFiles[username]) cloudFiles[username] = [];
-  const totalSize = cloudFiles[username].reduce((sum, f) => sum + f.size, 0);
-  if (totalSize + req.file.size > 1024 * 1024 * 1024) {
-    return res.status(400).json({ error: 'Превышен лимит 1 ГБ' });
-  }
-  cloudFiles[username].push({ id: uuidv4(), name: req.file.originalname, url: `/uploads/${req.file.filename}`, size: req.file.size, date: Date.now() });
-  saveData('cloud.json', cloudFiles);
-  res.json({ success: true, files: cloudFiles[username] });
-});
-
-app.get('/api/cloud-files', (req, res) => {
-  const { token } = req.query;
-  const username = sessions[token];
-  res.json(cloudFiles[username] || []);
-});
-
-app.delete('/api/cloud-delete', (req, res) => {
-  const { token, fileId } = req.body;
-  const username = sessions[token];
-  if (cloudFiles[username]) {
-    cloudFiles[username] = cloudFiles[username].filter(f => f.id !== fileId);
-    saveData('cloud.json', cloudFiles);
-  }
-  res.json({ success: true });
-});
-
-// ===== ИГРЫ (БЕСПЛАТНО) =====
-let activeGames = loadData('active_games.json');
-
-app.post('/api/create-game', (req, res) => {
-  const { token, chatId, gameType } = req.body;
-  const username = sessions[token];
-  const gameId = uuidv4();
-  if (!activeGames[chatId]) activeGames[chatId] = {};
-  activeGames[chatId][gameId] = {
-    id: gameId, type: gameType, players: [username], status: 'waiting', data: {},
-    createdAt: Date.now(), currentTurn: username
-  };
-  saveData('active_games.json', activeGames);
-  io.emit('game_update', { chatId, game: activeGames[chatId][gameId] });
-  res.json({ success: true, gameId });
-});
-
-app.post('/api/game-move', (req, res) => {
-  const { token, chatId, gameId, move } = req.body;
-  const username = sessions[token];
-  const game = activeGames[chatId]?.[gameId];
-  if (!game) return res.status(404).json({ error: 'Игра не найдена' });
-  if (game.currentTurn !== username) return res.status(403).json({ error: 'Не ваш ход' });
-  game.data[move] = username;
-  game.currentTurn = game.players.find(p => p !== username);
-  saveData('active_games.json', activeGames);
-  io.emit('game_update', { chatId, game });
+  io.to(poll.chatId).emit('poll_update', { pollId, options: poll.options, totalVotes: poll.totalVotes });
   res.json({ success: true });
 });
 
@@ -389,7 +211,7 @@ app.get('/api/get-stickers', (req, res) => {
   res.json([...userStickers, ...globalStickers]);
 });
 
-// ===== ГРУППЫ И КАНАЛЫ =====
+// ===== ГРУППЫ =====
 app.post('/api/create-group', (req, res) => {
   const { token, name, description } = req.body;
   const creator = sessions[token];
@@ -397,7 +219,7 @@ app.post('/api/create-group', (req, res) => {
   groups[groupId] = {
     id: groupId, type: 'group', name, description: description || '', avatar: null, creator,
     members: [creator], admins: [creator], moderators: [], pinnedMessage: null, createdAt: Date.now(),
-    invites: [], customRules: ''
+    invites: []
   };
   saveAll();
   res.json({ success: true, group: groups[groupId] });
@@ -459,6 +281,14 @@ app.get('/api/search-messages', (req, res) => {
   res.json(results);
 });
 
+app.get('/api/chat-stats', (req, res) => {
+  const { chatId } = req.query;
+  const chatMessages = messages[chatId] || [];
+  const userStats = {};
+  chatMessages.forEach(msg => { if (!userStats[msg.from]) userStats[msg.from] = 0; userStats[msg.from]++; });
+  res.json({ totalMessages: chatMessages.length, userStats, lastActive: chatMessages[chatMessages.length - 1]?.timestamp });
+});
+
 app.get('/api/user-status/:username', (req, res) => {
   const user = users[req.params.username];
   if (user) {
@@ -483,6 +313,14 @@ app.post('/api/update-profile', async (req, res) => {
   }
 });
 
+app.post('/api/toggle-anonymous', (req, res) => {
+  const { token } = req.body;
+  const username = sessions[token];
+  users[username].anonymous = !users[username].anonymous;
+  saveAll();
+  res.json({ success: true, anonymous: users[username].anonymous });
+});
+
 app.post('/api/edit-message', (req, res) => {
   const { token, messageId, chatId, newText } = req.body;
   const username = sessions[token];
@@ -493,7 +331,7 @@ app.post('/api/edit-message', (req, res) => {
       message.edited = true;
       message.editedAt = Date.now();
       saveAll();
-      io.emit('message_edited', { chatId, messageId, newText });
+      io.to(chatId).emit('message_edited', { chatId, messageId, newText });
       res.json({ success: true });
     }
   }
@@ -515,7 +353,7 @@ app.post('/api/delete-message', (req, res) => {
           message.attachments = [];
         }
         saveAll();
-        io.emit('message_deleted', { chatId, messageId, forEveryone });
+        io.to(chatId).emit('message_deleted', { chatId, messageId, forEveryone });
         res.json({ success: true });
       }
     }
@@ -530,7 +368,7 @@ app.post('/api/pin-message', (req, res) => {
     if (message) {
       message.pinned = !message.pinned;
       saveAll();
-      io.emit('message_pinned', { chatId, messageId, pinned: message.pinned });
+      io.to(chatId).emit('message_pinned', { chatId, messageId, pinned: message.pinned });
       res.json({ success: true, pinned: message.pinned });
     }
   }
@@ -561,76 +399,83 @@ io.on('connection', (socket) => {
     io.emit('user_status_change', { username, online: true, lastSeen: users[username].lastSeen, lastSeenFormatted: formatLastSeen(users[username].lastSeen) });
   }
   
+  socket.join(username);
+  
   const userGroups = Object.values(groups).filter(g => g.members.includes(username));
   const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
   const userDMs = [];
+  
   Object.keys(messages).forEach(chatId => {
     if (chatId.includes(username)) {
       const other = chatId.replace(username, '').replace(/_/g, '');
-      if (other && users[other]) userDMs.push({ id: chatId, type: 'dm', with: other, lastMessage: messages[chatId][messages[chatId].length - 1] });
+      if (other && users[other]) {
+        userDMs.push({ id: chatId, type: 'dm', with: other, lastMessage: messages[chatId][messages[chatId].length - 1] });
+      }
     }
   });
   
   socket.emit('init', { user: users[username], chats: [...userDMs, ...userGroups, ...userChannels], stickers: stickers[username] || [] });
   
-  // Проверка отложенных сообщений каждую минуту
-  setInterval(() => {
-    const now = Date.now();
-    Object.entries(scheduledMessages).forEach(([id, msg]) => {
-      if (msg.status === 'pending' && msg.scheduleTime <= now) {
-        msg.status = 'sent';
-        const message = { id: uuidv4(), from: msg.from, to: msg.to, text: msg.text, attachments: [], timestamp: Date.now(), type: msg.type, scheduled: true };
-        const chatId = [msg.from, msg.to].sort().join('_');
-        if (!messages[chatId]) messages[chatId] = [];
-        messages[chatId].push(message);
-        const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === msg.to);
-        if (recipientSocket) recipientSocket.emit('new_message', message);
-        saveAll();
-      }
-    });
-  }, 60000);
-  
   socket.on('send_message', (data) => {
     const { to, type, text, attachments, replyTo } = data;
+    console.log(`📨 Сообщение от ${username} для ${to} (${type}): "${text}"`);
+    
     const displayFrom = users[username]?.anonymous ? 'Аноним' : username;
     const message = {
-      id: uuidv4(), from: displayFrom, realFrom: username, to, text, attachments: attachments || [],
-      replyTo: replyTo || null, timestamp: Date.now(), type, read: false, edited: false, pinned: false
+      id: uuidv4(),
+      from: displayFrom,
+      realFrom: username,
+      to: to,
+      text: text,
+      attachments: attachments || [],
+      replyTo: replyTo || null,
+      timestamp: Date.now(),
+      type: type,
+      read: false,
+      edited: false,
+      pinned: false
     };
+    
     let chatId;
+    
     if (type === 'dm') {
       chatId = [username, to].sort().join('_');
       if (!messages[chatId]) messages[chatId] = [];
       messages[chatId].push(message);
       saveAll();
+      
       socket.emit('new_message', message);
-      const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === to);
-      if (recipientSocket) recipientSocket.emit('new_message', message);
-    } else if (type === 'group') {
+      io.to(to).emit('new_message', message);
+      console.log(`📤 Сообщение отправлено получателю ${to}`);
+    }
+    else if (type === 'group') {
       const group = groups[to];
       if (group && group.members.includes(username)) {
-        if (!messages[to]) messages[to] = [];
-        messages[to].push(message);
+        chatId = to;
+        if (!messages[chatId]) messages[chatId] = [];
+        messages[chatId].push(message);
         saveAll();
+        
         socket.emit('new_message', message);
         group.members.forEach(member => {
           if (member !== username) {
-            const memberSocket = [...io.sockets.sockets.values()].find(s => s.username === member);
-            if (memberSocket) memberSocket.emit('new_message', message);
+            io.to(member).emit('new_message', message);
           }
         });
       }
-    } else if (type === 'channel') {
+    }
+    else if (type === 'channel') {
       const channel = channels[to];
       if (channel && channel.subscribers.includes(username)) {
-        if (!messages[to]) messages[to] = [];
-        messages[to].push(message);
+        chatId = to;
+        if (!messages[chatId]) messages[chatId] = [];
+        messages[chatId].push(message);
         saveAll();
+        
         socket.emit('new_message', message);
         channel.subscribers.forEach(sub => {
           if (sub !== username) {
-            const subSocket = [...io.sockets.sockets.values()].find(s => s.username === sub);
-            if (subSocket) subSocket.emit('new_message', message);
+            io.to(sub).emit('new_message', message);
           }
         });
       }
@@ -638,16 +483,20 @@ io.on('connection', (socket) => {
   });
   
   socket.on('load_chat', ({ chatId }) => {
-    socket.emit('chat_history', { chatId, messages: messages[chatId] || [] });
+    const history = messages[chatId] || [];
+    console.log(`📜 Загрузка истории чата ${chatId}, сообщений: ${history.length}`);
+    socket.emit('chat_history', { chatId, messages: history });
   });
   
   socket.on('get_user_status', ({ username: targetUsername }) => {
     const user = users[targetUsername];
-    if (user) socket.emit('user_status', { username: targetUsername, online: user.online || false, lastSeen: user.lastSeen, lastSeenFormatted: formatLastSeen(user.lastSeen) });
+    if (user) {
+      socket.emit('user_status', { username: targetUsername, online: user.online || false, lastSeen: user.lastSeen, lastSeenFormatted: formatLastSeen(user.lastSeen) });
+    }
   });
   
   socket.on('typing', ({ chatId, isTyping }) => {
-    socket.broadcast.emit('user_typing', { username, chatId, isTyping });
+    socket.to(chatId).emit('user_typing', { username, chatId, isTyping });
   });
   
   socket.on('disconnect', () => {
@@ -661,22 +510,11 @@ io.on('connection', (socket) => {
   });
 });
 
-setInterval(() => saveAll(), 10000);
+setInterval(() => saveAll(), 5000);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log('💜💚 POTATUIKA БЕСПЛАТНЫЙ МЕССЕНДЖЕР ЗАПУЩЕН!');
+  console.log('💜💚 POTATUIKA ЗАПУЩЕН!');
   console.log(`📍 http://localhost:${PORT}`);
-  console.log('✨ ВСЕ ФИЧИ БЕСПЛАТНЫ:');
-  console.log('  🎵 Музыкальный плеер');
-  console.log('  🗳️ Опросы');
-  console.log('  👑 Роли и права');
-  console.log('  🔗 Пригласительные ссылки');
-  console.log('  🎭 Анонимный режим');
-  console.log('  📊 Статистика чата');
-  console.log('  🎨 Кастомные темы');
-  console.log('  📎 Облачное хранилище (1 ГБ)');
-  console.log('  ⏰ Отложенные сообщения');
-  console.log('  🎮 Игры');
-  console.log('  🤖 Боты (в разработке)');
+  console.log('✨ Все данные сохраняются в папке data/');
 });
