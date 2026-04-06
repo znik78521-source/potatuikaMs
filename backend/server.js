@@ -246,10 +246,10 @@ io.on('connection', (socket) => {
     chats: [...userDMs, ...userGroups, ...userChannels]
   });
   
-  // Отправка сообщения
+  // ===== ОТПРАВКА СООБЩЕНИЯ - ИСПРАВЛЕНО! =====
   socket.on('send_message', (data) => {
     const { to, type, text, attachments } = data;
-    console.log(`📨 ${username} -> ${to}: ${text}`);
+    console.log(`📨 Сообщение от ${username} для ${to} (${type}): ${text}`);
     
     const message = {
       id: uuidv4(),
@@ -264,16 +264,25 @@ io.on('connection', (socket) => {
     let chatId;
     
     if (type === 'dm') {
+      // Сортируем имена для создания уникального ID чата
       chatId = [username, to].sort().join('_');
+      
       if (!messages[chatId]) messages[chatId] = [];
       messages[chatId].push(message);
       saveAll();
       
+      console.log(`💾 Сохранено в ${chatId}, всего сообщений: ${messages[chatId].length}`);
+      
+      // Отправляем отправителю
       socket.emit('new_message', message);
       
+      // Отправляем получателю
       const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === to);
       if (recipientSocket) {
         recipientSocket.emit('new_message', message);
+        console.log(`📤 Отправлено получателю ${to}`);
+      } else {
+        console.log(`⚠️ Получатель ${to} не в сети`);
       }
     }
     else if (type === 'group') {
@@ -315,6 +324,7 @@ io.on('connection', (socket) => {
   // Загрузка истории
   socket.on('load_chat', ({ chatId }) => {
     const history = messages[chatId] || [];
+    console.log(`📜 Загрузка истории чата ${chatId}, сообщений: ${history.length}`);
     socket.emit('chat_history', { chatId, messages: history });
   });
   
@@ -323,8 +333,14 @@ io.on('connection', (socket) => {
   });
 });
 
+// Авто-сохранение каждые 10 секунд
+setInterval(() => {
+  saveAll();
+}, 10000);
+
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log('💜💚 POTATUIKA 2.0 ЗАПУЩЕН!');
   console.log(`📍 http://localhost:${PORT}`);
+  console.log('📝 Тестовые аккаунты: alex/123  или  maria/123');
 });
