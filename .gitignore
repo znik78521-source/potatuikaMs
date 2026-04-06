@@ -1,0 +1,18 @@
+# Секретные файлы
+.env
+backend/.env
+
+# Папка с данными
+backend/data/
+
+# Папка с файлами
+backend/uploads/
+backend/avatars/
+
+# Node modules
+node_modules/
+backend/node_modules/
+
+# Логи
+*.log
+npm-debug.log*
