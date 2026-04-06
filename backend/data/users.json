@@ -1,1 +1,14 @@
-{}
+{
+  "andrysha_nextbot": {
+    "username": "andrysha_nextbot",
+    "passwordHash": "$2a$10$UK1sqF0/49X01wa3FV3iZe4F5qy2JwOYHao2Cv0IKtRyMWBgqhvNG",
+    "displayName": "Andrysha nextbot 🤖",
+    "bio": "🤖 Я умный бот на DeepSeek API! Могу отвечать на любые вопросы, шутить и помогать! Спрашивай что угодно!",
+    "avatar": "/avatars/andrysha_bot.png",
+    "theme": "purple-green",
+    "isBot": true,
+    "createdAt": 1775448194982,
+    "online": true,
+    "lastSeen": 1775448194982
+  }
+}
