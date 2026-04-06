@@ -15,20 +15,26 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: "*" } });
+const io = new Server(httpServer, { 
+  cors: { origin: "*" },
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static('uploads'));
 app.use('/avatars', express.static('avatars'));
+app.use('/stickers', express.static('stickers'));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Создаем папки
-['uploads', 'avatars', 'data'].forEach(dir => {
+['uploads', 'avatars', 'stickers', 'data'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 });
 
-// ===== ПОСТОЯННОЕ ХРАНЕНИЕ В ФАЙЛАХ =====
+// ===== ПОСТОЯННОЕ ХРАНЕНИЕ =====
 const DATA_DIR = './data';
 const loadData = (filename) => {
   try {
@@ -41,12 +47,13 @@ const saveData = (filename, data) => {
   fs.writeFileSync(path.join(DATA_DIR, filename), JSON.stringify(data, null, 2));
 };
 
-// Инициализация данных
 let users = loadData('users.json');
 let messages = loadData('messages.json');
 let groups = loadData('groups.json');
 let channels = loadData('channels.json');
 let sessions = loadData('sessions.json');
+let stickers = loadData('stickers.json'); // Авторские смайлики
+let deletedMessages = loadData('deleted.json'); // Удаленные сообщения
 
 const saveAll = () => {
   saveData('users.json', users);
@@ -54,27 +61,29 @@ const saveAll = () => {
   saveData('groups.json', groups);
   saveData('channels.json', channels);
   saveData('sessions.json', sessions);
+  saveData('stickers.json', stickers);
+  saveData('deleted.json', deletedMessages);
 };
 
-// Настройка загрузки файлов
+// Настройка загрузки
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const folder = file.fieldname === 'avatar' ? 'avatars' : 'uploads';
+    let folder = 'uploads';
+    if (file.fieldname === 'avatar') folder = 'avatars';
+    if (file.fieldname === 'sticker') folder = 'stickers';
     cb(null, folder);
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
+    const ext = path.extname(file.originalname);
+    cb(null, Date.now() + '-' + uuidv4() + ext);
   }
 });
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 function cleanUsername(username) {
   if (!username) return '';
-  let clean = username;
-  while (clean.startsWith('@')) {
-    clean = clean.substring(1);
-  }
-  return clean;
+  while (username.startsWith('@')) username = username.substring(1);
+  return username;
 }
 
 // ===== API =====
@@ -129,11 +138,57 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
-  const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : 'uploads'}/${req.file.filename}`;
+  const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : req.file.fieldname === 'sticker' ? 'stickers' : 'uploads'}/${req.file.filename}`;
   const type = req.file.mimetype.startsWith('image/') ? 'image' : 
                 req.file.mimetype.startsWith('video/') ? 'video' : 
                 req.file.mimetype === 'audio/mpeg' ? 'audio' : 'file';
   res.json({ url: fileUrl, type, name: req.file.originalname });
+});
+
+app.post('/api/create-sticker', upload.single('sticker'), (req, res) => {
+  const { token, name } = req.body;
+  const username = sessions[token];
+  
+  if (!username) return res.status(401).json({ error: 'Не авторизован' });
+  
+  const stickerId = uuidv4();
+  const stickerUrl = `/stickers/${req.file.filename}`;
+  
+  if (!stickers[username]) stickers[username] = [];
+  stickers[username].push({
+    id: stickerId,
+    name: name || 'sticker',
+    url: stickerUrl,
+    createdAt: Date.now()
+  });
+  saveAll();
+  
+  res.json({ success: true, sticker: { id: stickerId, name: name || 'sticker', url: stickerUrl } });
+});
+
+app.get('/api/get-stickers', (req, res) => {
+  const { token } = req.query;
+  const username = sessions[token];
+  
+  if (!username) return res.json([]);
+  
+  const userStickers = stickers[username] || [];
+  const globalStickers = stickers['global'] || [];
+  
+  res.json([...userStickers, ...globalStickers]);
+});
+
+app.delete('/api/delete-sticker', (req, res) => {
+  const { token, stickerId } = req.body;
+  const username = sessions[token];
+  
+  if (stickers[username]) {
+    stickers[username] = stickers[username].filter(s => s.id !== stickerId);
+    saveAll();
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Стикер не найден' });
+  }
 });
 
 app.post('/api/update-profile', async (req, res) => {
@@ -152,6 +207,66 @@ app.post('/api/update-profile', async (req, res) => {
   }
 });
 
+app.post('/api/delete-message', (req, res) => {
+  const { token, messageId, chatId, forEveryone } = req.body;
+  const username = sessions[token];
+  
+  if (messages[chatId]) {
+    const messageIndex = messages[chatId].findIndex(m => m.id === messageId);
+    if (messageIndex !== -1) {
+      const message = messages[chatId][messageIndex];
+      
+      if (message.from === username || forEveryone) {
+        if (forEveryone) {
+          messages[chatId].splice(messageIndex, 1);
+        } else {
+          message.deletedFor = message.deletedFor || [];
+          message.deletedFor.push(username);
+          message.text = '[Сообщение удалено]';
+          message.attachments = [];
+        }
+        saveAll();
+        res.json({ success: true });
+        
+        // Уведомляем всех в чате
+        io.emit('message_deleted', { chatId, messageId, forEveryone });
+      }
+    }
+  }
+});
+
+app.post('/api/edit-message', (req, res) => {
+  const { token, messageId, chatId, newText } = req.body;
+  const username = sessions[token];
+  
+  if (messages[chatId]) {
+    const message = messages[chatId].find(m => m.id === messageId);
+    if (message && message.from === username) {
+      message.text = newText;
+      message.edited = true;
+      message.editedAt = Date.now();
+      saveAll();
+      res.json({ success: true });
+      io.emit('message_edited', { chatId, messageId, newText });
+    }
+  }
+});
+
+app.post('/api/pin-message', (req, res) => {
+  const { token, messageId, chatId } = req.body;
+  const username = sessions[token];
+  
+  if (messages[chatId]) {
+    const message = messages[chatId].find(m => m.id === messageId);
+    if (message) {
+      message.pinned = !message.pinned;
+      saveAll();
+      res.json({ success: true, pinned: message.pinned });
+      io.emit('message_pinned', { chatId, messageId, pinned: message.pinned });
+    }
+  }
+});
+
 app.post('/api/create-group', (req, res) => {
   const { token, name, description } = req.body;
   const creator = sessions[token];
@@ -166,6 +281,7 @@ app.post('/api/create-group', (req, res) => {
     creator,
     members: [creator],
     admins: [creator],
+    moderators: [],
     createdAt: Date.now()
   };
   saveAll();
@@ -202,6 +318,15 @@ app.get('/api/search', (req, res) => {
   res.json(results);
 });
 
+app.get('/api/search-messages', (req, res) => {
+  const { chatId, q } = req.query;
+  const chatMessages = messages[chatId] || [];
+  const results = chatMessages.filter(m => 
+    m.text && m.text.toLowerCase().includes(q.toLowerCase())
+  );
+  res.json(results);
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
@@ -222,7 +347,14 @@ io.on('connection', (socket) => {
   const username = socket.username;
   console.log(`✅ ${username} подключился`);
   
-  // Отправляем все чаты пользователя
+  // Обновляем онлайн статус
+  if (users[username]) {
+    users[username].online = true;
+    users[username].lastSeen = Date.now();
+    io.emit('user_status', { username, online: true, lastSeen: Date.now() });
+  }
+  
+  // Отправляем чаты
   const userGroups = Object.values(groups).filter(g => g.members.includes(username));
   const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
   const userDMs = [];
@@ -243,13 +375,13 @@ io.on('connection', (socket) => {
   
   socket.emit('init', {
     user: users[username],
-    chats: [...userDMs, ...userGroups, ...userChannels]
+    chats: [...userDMs, ...userGroups, ...userChannels],
+    stickers: stickers[username] || []
   });
   
-  // ===== ОТПРАВКА СООБЩЕНИЯ - ИСПРАВЛЕНО! =====
+  // Отправка сообщения
   socket.on('send_message', (data) => {
-    const { to, type, text, attachments } = data;
-    console.log(`📨 Сообщение от ${username} для ${to} (${type}): ${text}`);
+    const { to, type, text, attachments, replyTo } = data;
     
     const message = {
       id: uuidv4(),
@@ -257,33 +389,23 @@ io.on('connection', (socket) => {
       to: to,
       text: text,
       attachments: attachments || [],
+      replyTo: replyTo || null,
       timestamp: Date.now(),
-      type: type
+      type: type,
+      read: false
     };
     
     let chatId;
     
     if (type === 'dm') {
-      // Сортируем имена для создания уникального ID чата
       chatId = [username, to].sort().join('_');
-      
       if (!messages[chatId]) messages[chatId] = [];
       messages[chatId].push(message);
       saveAll();
       
-      console.log(`💾 Сохранено в ${chatId}, всего сообщений: ${messages[chatId].length}`);
-      
-      // Отправляем отправителю
       socket.emit('new_message', message);
-      
-      // Отправляем получателю
       const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === to);
-      if (recipientSocket) {
-        recipientSocket.emit('new_message', message);
-        console.log(`📤 Отправлено получателю ${to}`);
-      } else {
-        console.log(`⚠️ Получатель ${to} не в сети`);
-      }
+      if (recipientSocket) recipientSocket.emit('new_message', message);
     }
     else if (type === 'group') {
       const group = groups[to];
@@ -293,7 +415,6 @@ io.on('connection', (socket) => {
         saveAll();
         
         socket.emit('new_message', message);
-        
         group.members.forEach(member => {
           if (member !== username) {
             const memberSocket = [...io.sockets.sockets.values()].find(s => s.username === member);
@@ -310,7 +431,6 @@ io.on('connection', (socket) => {
         saveAll();
         
         socket.emit('new_message', message);
-        
         channel.subscribers.forEach(sub => {
           if (sub !== username) {
             const subSocket = [...io.sockets.sockets.values()].find(s => s.username === sub);
@@ -321,26 +441,45 @@ io.on('connection', (socket) => {
     }
   });
   
+  // Печатает...
+  socket.on('typing', ({ chatId, isTyping }) => {
+    socket.broadcast.emit('user_typing', { username, chatId, isTyping });
+  });
+  
+  // Прочитано
+  socket.on('mark_read', ({ chatId }) => {
+    if (messages[chatId]) {
+      messages[chatId].forEach(msg => {
+        if (msg.to === username && !msg.read) {
+          msg.read = true;
+        }
+      });
+      saveAll();
+      socket.emit('messages_read', { chatId });
+    }
+  });
+  
   // Загрузка истории
   socket.on('load_chat', ({ chatId }) => {
     const history = messages[chatId] || [];
-    console.log(`📜 Загрузка истории чата ${chatId}, сообщений: ${history.length}`);
     socket.emit('chat_history', { chatId, messages: history });
   });
   
   socket.on('disconnect', () => {
+    if (users[username]) {
+      users[username].online = false;
+      users[username].lastSeen = Date.now();
+      io.emit('user_status', { username, online: false, lastSeen: Date.now() });
+    }
     console.log(`❌ ${username} отключился`);
   });
 });
 
-// Авто-сохранение каждые 10 секунд
-setInterval(() => {
-  saveAll();
-}, 10000);
+// Авто-сохранение
+setInterval(() => saveAll(), 30000);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log('💜💚 POTATUIKA 2.0 ЗАПУЩЕН!');
+  console.log('💜💚 POTATUIKA 3.0 ЗАПУЩЕН!');
   console.log(`📍 http://localhost:${PORT}`);
-  console.log('📝 Тестовые аккаунты: alex/123  или  maria/123');
 });
