@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1a0b2e">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Potatuika Messenger 💜💚</title>
     <style>
         * {
@@ -17,11 +16,6 @@
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes slideInLeft {
-            from { transform: translateX(-100%); }
-            to { transform: translateX(0); }
         }
         
         @keyframes messageAppear {
@@ -85,7 +79,6 @@
         
         .page.active {
             display: block;
-            animation: fadeIn 0.3s ease;
         }
 
         /* АВТОРИЗАЦИЯ */
@@ -205,10 +198,22 @@
             border-radius: 60px;
         }
 
+        .loading-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, var(--bg-dark), var(--bg-light));
+        }
+        
+        .loading-spinner {
+            text-align: center;
+        }
+        
         .loading {
             display: inline-block;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             border: 3px solid var(--primary);
             border-top-color: var(--secondary);
             border-radius: 50%;
@@ -222,7 +227,6 @@
             position: relative;
         }
 
-        /* БОКОВАЯ ПАНЕЛЬ */
         .sidebar {
             width: 320px;
             background: var(--bg-card);
@@ -393,13 +397,6 @@
             margin-top: 4px;
         }
 
-        .chat-status {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-
-        /* ЧАТ */
         .chat-area {
             flex: 1;
             display: flex;
@@ -470,7 +467,6 @@
             background: var(--hover);
         }
 
-        /* СООБЩЕНИЯ */
         .messages-container {
             flex: 1;
             overflow-y: auto;
@@ -485,7 +481,6 @@
             padding: 10px 14px;
             border-radius: 20px;
             animation: messageAppear 0.2s ease;
-            position: relative;
         }
         
         @media (max-width: 480px) {
@@ -558,7 +553,6 @@
             animation: pulse 1.4s infinite;
         }
 
-        /* ВВОД СООБЩЕНИЯ */
         .message-input-area {
             padding: 12px 16px;
             background: var(--bg-card);
@@ -600,7 +594,6 @@
             transform: scale(0.92);
         }
 
-        /* МОДАЛКИ */
         .modal {
             display: none;
             position: fixed;
@@ -656,7 +649,6 @@
             margin-right: 10px;
         }
 
-        /* МЕДИА ВЬЮВЕР */
         .media-viewer {
             display: none;
             position: fixed;
@@ -698,7 +690,7 @@
     </style>
 </head>
 <body class="theme-purple-green">
-    <!-- СТРАНИЦА ЛОГИНА -->
+    <!-- СТРАНИЦА ЛОГИНА (пустая, заполняется JS) -->
     <div id="login-page" class="page active"></div>
     
     <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
@@ -717,7 +709,7 @@
                     <input type="text" id="search-input" placeholder="🔍 Поиск пользователей...">
                 </div>
                 <div class="chats-list" id="chats-list">
-                    <div style="padding: 20px; text-align: center; color: gray;">📭 Нет чатов<br>🔍 Найдите пользователя через поиск</div>
+                    <div style="padding: 20px; text-align: center; color: gray;">📭 Загрузка чатов...</div>
                 </div>
             </div>
             <div class="chat-area" id="chat-area" style="display: none;">
@@ -886,22 +878,7 @@
             return '<span style="color: #888;">⚫ не в сети</span>';
         }
 
-        function showLoading() {
-            const loginPage = document.getElementById('login-page');
-            loginPage.innerHTML = `
-                <div class="auth-container" style="text-align: center;">
-                    <div class="logo">
-                        <div class="logo-icon">💜💚</div>
-                        <h1>Potatuika</h1>
-                    </div>
-                    <div class="loading" style="margin: 20px auto;"></div>
-                    <p>Загрузка...</p>
-                </div>
-            `;
-            loginPage.classList.add('active');
-        }
-
-        function restoreLoginForm() {
+        function showLoginForm() {
             const loginPage = document.getElementById('login-page');
             loginPage.innerHTML = `
                 <div class="auth-container">
@@ -953,8 +930,12 @@
                 });
                 
                 if (res.ok) {
-                    alert('✅ Регистрация успешна! Теперь войдите');
-                    document.querySelector('[data-tab="login"]').click();
+                    const data = await res.json();
+                    // АВТО-ВХОД ПОСЛЕ РЕГИСТРАЦИИ
+                    currentUser = data.user;
+                    token = data.token;
+                    localStorage.setItem('potatuika_token', token);
+                    connectSocket();
                 } else {
                     const err = await res.json();
                     alert('❌ Ошибка: ' + err.error);
@@ -984,6 +965,19 @@
             });
         }
 
+        function showLoading() {
+            const loginPage = document.getElementById('login-page');
+            loginPage.innerHTML = `
+                <div class="loading-container">
+                    <div class="loading-spinner">
+                        <div class="loading"></div>
+                        <p style="margin-top: 20px; color: var(--text-secondary);">Загрузка Potatuika...</p>
+                    </div>
+                </div>
+            `;
+            loginPage.classList.add('active');
+        }
+
         // ===== WEBSOCKET =====
         function connectSocket() {
             socket = io({ auth: { token } });
@@ -996,6 +990,8 @@
                 document.getElementById('user-username').textContent = '@' + currentUser.username;
                 if (currentUser.avatar && currentUser.avatar !== 'null') {
                     document.getElementById('user-avatar').innerHTML = `<img src="${currentUser.avatar}" class="avatar-img">`;
+                } else {
+                    document.getElementById('user-avatar').innerHTML = currentUser.isBot ? '🤖' : '👤';
                 }
                 document.getElementById('login-page').classList.remove('active');
                 document.getElementById('app-page').classList.add('active');
@@ -1021,6 +1017,12 @@
                     document.getElementById('chat-status-text').innerHTML = formatStatus(data.online, data.lastSeen);
                 }
                 refreshChatsList();
+            });
+            
+            socket.on('user_status', (data) => {
+                if (currentChat && currentChat.type === 'dm' && currentChat.id.includes(data.username)) {
+                    document.getElementById('chat-status-text').innerHTML = formatStatus(data.online, data.lastSeen);
+                }
             });
             
             socket.on('user_typing', ({ username, chatId, isTyping }) => {
@@ -1076,9 +1078,10 @@
                     
                     if (chat.type === 'dm' && chat.with !== 'andrysha_nextbot') {
                         socket.emit('get_user_status', { username: chat.with });
+                        document.getElementById('chat-status-text').innerHTML = '<span style="color: var(--text-secondary);">загрузка...</span>';
                     }
                     if (chat.with === 'andrysha_nextbot') {
-                        document.getElementById('chat-status-text').innerHTML = '🤖 Онлайн (бот)';
+                        document.getElementById('chat-status-text').innerHTML = '🤖 Онлайн (бот на DeepSeek)';
                     }
                     
                     socket.emit('load_chat', { chatId: chat.id });
@@ -1095,7 +1098,7 @@
                     <div class="chat-avatar">${icon}</div>
                     <div class="chat-info">
                         <div class="chat-name">${escapeHtml(displayName)}</div>
-                        <div class="chat-preview">${escapeHtml(preview)}</div>
+                        <div class="chat-preview">${escapeHtml(preview.substring(0, 50))}</div>
                     </div>
                 `;
                 container.appendChild(div);
@@ -1111,12 +1114,14 @@
             const isOwn = message.from === currentUser.username;
             const div = document.createElement('div');
             div.className = `message ${isOwn ? 'own' : 'other'}`;
-            div.setAttribute('data-id', message.id);
             
             let content = '';
             
             if (!isOwn) {
-                const senderName = message.from === 'andrysha_nextbot' ? '🤖 Andrysha nextbot' : message.from;
+                let senderName = message.from;
+                if (message.from === 'andrysha_nextbot') {
+                    senderName = '🤖 Andrysha nextbot';
+                }
                 content += `<div class="message-sender">${escapeHtml(senderName)}</div>`;
             }
             
@@ -1165,7 +1170,7 @@
         });
         
         document.getElementById('message-input')?.addEventListener('input', () => {
-            if (currentChat && currentChat.type === 'dm') {
+            if (currentChat && currentChat.type === 'dm' && currentChat.id !== 'andrysha_nextbot') {
                 socket.emit('typing', { chatId: currentChat.id, isTyping: true });
                 clearTimeout(typingTimeout);
                 typingTimeout = setTimeout(() => {
@@ -1256,6 +1261,10 @@
         document.getElementById('create-group-submit')?.addEventListener('click', async () => {
             const name = document.getElementById('group-name').value;
             const description = document.getElementById('group-desc').value;
+            if (!name) {
+                alert('Введите название группы');
+                return;
+            }
             const res = await fetch('/api/create-group', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1272,6 +1281,10 @@
         document.getElementById('create-channel-submit')?.addEventListener('click', async () => {
             const name = document.getElementById('channel-name').value;
             const description = document.getElementById('channel-desc').value;
+            if (!name) {
+                alert('Введите название канала');
+                return;
+            }
             const res = await fetch('/api/create-channel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1295,6 +1308,9 @@
                 const users = await res.json();
                 const container = document.getElementById('chats-list');
                 container.innerHTML = '';
+                if (users.length === 0) {
+                    container.innerHTML = '<div style="padding: 20px; text-align: center; color: gray;">👤 Пользователи не найдены</div>';
+                }
                 users.forEach(user => {
                     const div = document.createElement('div');
                     div.className = 'chat-item';
@@ -1305,6 +1321,7 @@
                         document.getElementById('chat-area').style.display = 'flex';
                         socket.emit('load_chat', { chatId });
                         socket.emit('get_user_status', { username: user.username });
+                        document.getElementById('chat-status-text').innerHTML = '<span style="color: var(--text-secondary);">загрузка...</span>';
                         if (window.innerWidth <= 768) {
                             document.getElementById('sidebar').classList.remove('open');
                             document.getElementById('sidebar-overlay').classList.remove('open');
@@ -1313,6 +1330,8 @@
                     div.innerHTML = `<div class="chat-avatar">👤</div><div class="chat-info"><div class="chat-name">${escapeHtml(user.displayName)}</div><div class="chat-preview">@${user.username}</div></div>`;
                     container.appendChild(div);
                 });
+            } else if (query.length === 0) {
+                refreshChatsList();
             }
         });
 
@@ -1327,7 +1346,7 @@
             document.getElementById('sidebar-overlay').classList.remove('open');
         });
 
-        // ===== ЗАПУСК =====
+        // ===== ЗАПУСК (БЫСТРЫЙ АВТО-ВХОД) =====
         if (token) {
             showLoading();
             fetch('/api/login', {
@@ -1341,11 +1360,13 @@
                     localStorage.setItem('potatuika_token', token);
                     connectSocket();
                 } else {
-                    restoreLoginForm();
+                    showLoginForm();
                 }
-            }).catch(() => restoreLoginForm());
+            }).catch(() => {
+                showLoginForm();
+            });
         } else {
-            restoreLoginForm();
+            showLoginForm();
         }
     </script>
 </body>

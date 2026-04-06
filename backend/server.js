@@ -95,7 +95,6 @@ function formatLastSeen(timestamp) {
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 if (!DEEPSEEK_API_KEY) {
   console.error('❌ НЕТ DEEPSEEK API КЛЮЧА! Создай файл .env в папке backend');
-  console.error('📝 В файл .env добавь: DEEPSEEK_API_KEY=твой_ключ');
 }
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
@@ -200,20 +199,22 @@ app.post('/api/register', async (req, res) => {
     theme: 'purple-green',
     isBot: false,
     createdAt: Date.now(),
-    online: false,
-    lastSeen: null
+    online: true,
+    lastSeen: Date.now()
   };
   
   const token = jwt.sign({ username: cleanUser }, 'SECRET_KEY');
   sessions[token] = cleanUser;
   saveAll();
   
+  // Сразу возвращаем токен и пользователя (авто-вход после регистрации)
   res.json({ token, user: users[cleanUser] });
 });
 
 app.post('/api/login', async (req, res) => {
   const { username, password, token: savedToken } = req.body;
   
+  // Авто-вход по токену
   if (savedToken && sessions[savedToken]) {
     const usernameFromToken = sessions[savedToken];
     if (users[usernameFromToken]) {
@@ -224,6 +225,7 @@ app.post('/api/login', async (req, res) => {
     }
   }
   
+  // Обычный вход
   const cleanUser = cleanUsername(username);
   const user = users[cleanUser];
   
@@ -559,8 +561,8 @@ io.on('connection', async (socket) => {
   });
 });
 
-// Авто-сохранение каждые 30 секунд
-setInterval(() => saveAll(), 30000);
+// Авто-сохранение каждые 5 секунд
+setInterval(() => saveAll(), 5000);
 
 // Запуск бота
 initBot();
