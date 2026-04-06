@@ -18,6 +18,11 @@
             to { opacity: 1; transform: translateY(0); }
         }
         
+        @keyframes slideInLeft {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        
         @keyframes messageAppear {
             from { opacity: 0; transform: translateY(20px) scale(0.95); }
             to { opacity: 1; transform: translateY(0) scale(1); }
@@ -186,16 +191,6 @@
         
         .auth-form button:active {
             transform: scale(0.97);
-        }
-
-        .bot-hint {
-            text-align: center;
-            margin-top: 16px;
-            font-size: 12px;
-            color: var(--text-secondary);
-            padding: 8px;
-            background: rgba(0,255,170,0.1);
-            border-radius: 60px;
         }
 
         .loading-container {
@@ -690,10 +685,8 @@
     </style>
 </head>
 <body class="theme-purple-green">
-    <!-- СТРАНИЦА ЛОГИНА (пустая, заполняется JS) -->
     <div id="login-page" class="page active"></div>
     
-    <!-- ОСНОВНОЕ ПРИЛОЖЕНИЕ -->
     <div id="app-page" class="page">
         <div class="app-container">
             <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -735,7 +728,6 @@
         </div>
     </div>
 
-    <!-- МОДАЛЬНЫЕ ОКНА -->
     <div id="profile-modal" class="modal">
         <div class="modal-content">
             <h3>✏️ Редактировать профиль</h3>
@@ -752,14 +744,11 @@
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <h3>⚙️ Настройки</h3>
-            <div class="settings-section">
-                <label>🎨 Тема оформления</label>
-                <select id="theme-select">
-                    <option value="purple-green">💜 Фиолетово-зеленая</option>
-                    <option value="dark">🌙 Темная</option>
-                </select>
-            </div>
-            <br>
+            <select id="theme-select">
+                <option value="purple-green">💜 Фиолетово-зеленая</option>
+                <option value="dark">🌙 Темная</option>
+            </select>
+            <br><br>
             <button onclick="saveSettings()">💾 Сохранить</button>
             <button onclick="closeModal('settings-modal')">❌ Закрыть</button>
         </div>
@@ -785,6 +774,15 @@
         </div>
     </div>
 
+    <div id="invite-modal" class="modal">
+        <div class="modal-content">
+            <h3>👥 Пригласить в группу</h3>
+            <input type="text" id="invite-username" placeholder="username пользователя">
+            <button id="send-invite-btn">📨 Отправить приглашение</button>
+            <button onclick="closeModal('invite-modal')">❌ Отмена</button>
+        </div>
+    </div>
+
     <div id="media-viewer" class="media-viewer">
         <span class="close-media" onclick="closeMedia()">×</span>
         <img id="media-img" style="display: none;">
@@ -799,7 +797,6 @@
         let token = localStorage.getItem('potatuika_token');
         let typingTimeout = null;
 
-        // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
         function openModal(id) {
             document.getElementById(id).classList.add('active');
         }
@@ -894,9 +891,6 @@
                         <input type="text" id="login-username" placeholder="username (без @)">
                         <input type="password" id="login-password" placeholder="Пароль">
                         <button id="login-btn">Войти</button>
-                        <div class="bot-hint">
-                            🤖 Напиши <strong>@andrysha_nextbot</strong> чтобы поговорить с умным ботом на DeepSeek!
-                        </div>
                     </div>
                     <div id="register-form" class="auth-form">
                         <input type="text" id="reg-username" placeholder="username (без @)">
@@ -931,7 +925,6 @@
                 
                 if (res.ok) {
                     const data = await res.json();
-                    // АВТО-ВХОД ПОСЛЕ РЕГИСТРАЦИИ
                     currentUser = data.user;
                     token = data.token;
                     localStorage.setItem('potatuika_token', token);
@@ -978,7 +971,6 @@
             loginPage.classList.add('active');
         }
 
-        // ===== WEBSOCKET =====
         function connectSocket() {
             socket = io({ auth: { token } });
             
@@ -990,8 +982,6 @@
                 document.getElementById('user-username').textContent = '@' + currentUser.username;
                 if (currentUser.avatar && currentUser.avatar !== 'null') {
                     document.getElementById('user-avatar').innerHTML = `<img src="${currentUser.avatar}" class="avatar-img">`;
-                } else {
-                    document.getElementById('user-avatar').innerHTML = currentUser.isBot ? '🤖' : '👤';
                 }
                 document.getElementById('login-page').classList.remove('active');
                 document.getElementById('app-page').classList.add('active');
@@ -1062,7 +1052,7 @@
                 
                 if (chat.type === 'dm') {
                     displayName = '@' + chat.with;
-                    icon = chat.with === 'andrysha_nextbot' ? '🤖' : '👤';
+                    icon = '👤';
                 } else if (chat.type === 'group') {
                     displayName = chat.name;
                     icon = '👥';
@@ -1076,12 +1066,9 @@
                     document.getElementById('chat-title').textContent = displayName;
                     document.getElementById('chat-area').style.display = 'flex';
                     
-                    if (chat.type === 'dm' && chat.with !== 'andrysha_nextbot') {
+                    if (chat.type === 'dm') {
                         socket.emit('get_user_status', { username: chat.with });
                         document.getElementById('chat-status-text').innerHTML = '<span style="color: var(--text-secondary);">загрузка...</span>';
-                    }
-                    if (chat.with === 'andrysha_nextbot') {
-                        document.getElementById('chat-status-text').innerHTML = '🤖 Онлайн (бот на DeepSeek)';
                     }
                     
                     socket.emit('load_chat', { chatId: chat.id });
@@ -1118,11 +1105,7 @@
             let content = '';
             
             if (!isOwn) {
-                let senderName = message.from;
-                if (message.from === 'andrysha_nextbot') {
-                    senderName = '🤖 Andrysha nextbot';
-                }
-                content += `<div class="message-sender">${escapeHtml(senderName)}</div>`;
+                content += `<div class="message-sender">${escapeHtml(message.from)}</div>`;
             }
             
             content += `<div class="message-text">${escapeHtml(message.text)}</div>`;
@@ -1150,7 +1133,7 @@
             if (typing) typing.remove();
         }
 
-        // ===== ОТПРАВКА СООБЩЕНИЯ =====
+        // Отправка сообщения
         document.getElementById('send-btn')?.addEventListener('click', () => {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
@@ -1170,7 +1153,7 @@
         });
         
         document.getElementById('message-input')?.addEventListener('input', () => {
-            if (currentChat && currentChat.type === 'dm' && currentChat.id !== 'andrysha_nextbot') {
+            if (currentChat && currentChat.type === 'dm') {
                 socket.emit('typing', { chatId: currentChat.id, isTyping: true });
                 clearTimeout(typingTimeout);
                 typingTimeout = setTimeout(() => {
@@ -1179,7 +1162,7 @@
             }
         });
 
-        // ===== ФАЙЛЫ =====
+        // Файлы
         document.getElementById('file-btn')?.addEventListener('click', () => {
             const input = document.createElement('input');
             input.type = 'file';
@@ -1203,7 +1186,7 @@
             input.click();
         });
 
-        // ===== ПРОФИЛЬ =====
+        // Профиль
         document.getElementById('user-info')?.addEventListener('click', () => {
             document.getElementById('profile-displayname').value = currentUser.displayName || '';
             document.getElementById('profile-bio').value = currentUser.bio || '';
@@ -1248,13 +1231,13 @@
             closeModal('profile-modal');
         });
 
-        // ===== НАСТРОЙКИ =====
+        // Настройки
         document.getElementById('settings-btn')?.addEventListener('click', () => {
             document.getElementById('theme-select').value = currentUser?.theme || 'purple-green';
             openModal('settings-modal');
         });
 
-        // ===== ГРУППЫ И КАНАЛЫ =====
+        // Группы и каналы
         document.getElementById('create-group-btn')?.addEventListener('click', () => openModal('group-modal'));
         document.getElementById('create-channel-btn')?.addEventListener('click', () => openModal('channel-modal'));
         
@@ -1298,7 +1281,45 @@
             }
         });
 
-        // ===== ПОИСК =====
+        // Приглашение в группу
+        document.getElementById('send-invite-btn')?.addEventListener('click', async () => {
+            const username = document.getElementById('invite-username').value;
+            const groupId = currentChat?.id;
+            
+            if (!groupId || currentChat?.type !== 'group') {
+                alert('❌ Сначала выберите группу');
+                return;
+            }
+            
+            const res = await fetch('/api/invite-to-group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, groupId, username })
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                alert(`✅ Приглашение отправлено ${username}`);
+                closeModal('invite-modal');
+            } else {
+                alert('❌ ' + data.error);
+            }
+        });
+
+        // Кнопка приглашения в группе
+        function addInviteButton() {
+            const actions = document.querySelector('.chat-actions');
+            if (actions && !document.getElementById('invite-btn')) {
+                const inviteBtn = document.createElement('button');
+                inviteBtn.id = 'invite-btn';
+                inviteBtn.textContent = '👥';
+                inviteBtn.title = 'Пригласить в группу';
+                inviteBtn.onclick = () => openModal('invite-modal');
+                actions.appendChild(inviteBtn);
+            }
+        }
+
+        // Поиск
         document.getElementById('search-input')?.addEventListener('input', async (e) => {
             let query = e.target.value;
             query = cleanUsername(query);
@@ -1335,7 +1356,7 @@
             }
         });
 
-        // ===== МОБИЛЬНОЕ МЕНЮ =====
+        // Мобильное меню
         document.getElementById('menu-btn')?.addEventListener('click', () => {
             document.getElementById('sidebar').classList.add('open');
             document.getElementById('sidebar-overlay').classList.add('open');
@@ -1346,7 +1367,15 @@
             document.getElementById('sidebar-overlay').classList.remove('open');
         });
 
-        // ===== ЗАПУСК (БЫСТРЫЙ АВТО-ВХОД) =====
+        // Добавляем кнопку приглашения при загрузке чата
+        const observer = new MutationObserver(() => {
+            if (currentChat && currentChat.type === 'group') {
+                addInviteButton();
+            }
+        });
+        observer.observe(document.getElementById('chat-area'), { attributes: true, subtree: true });
+
+        // Запуск
         if (token) {
             showLoading();
             fetch('/api/login', {

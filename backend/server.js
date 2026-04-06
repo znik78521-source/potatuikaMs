@@ -1,6 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -12,7 +9,6 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,6 +53,7 @@ const saveAll = () => {
   saveData('groups.json', groups);
   saveData('channels.json', channels);
   saveData('sessions.json', sessions);
+  console.log('💾 Данные сохранены');
 };
 
 // Настройка загрузки файлов
@@ -91,95 +88,6 @@ function formatLastSeen(timestamp) {
   return `${days} д назад`;
 }
 
-// ===== DEEPSEEK API =====
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-if (!DEEPSEEK_API_KEY) {
-  console.error('❌ НЕТ DEEPSEEK API КЛЮЧА! Создай файл .env в папке backend');
-}
-
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
-
-async function getBotReply(userMessage, username) {
-  if (!DEEPSEEK_API_KEY) {
-    return '🤖 Извини, API ключ не настроен. Попроси администратора добавить DEEPSEEK_API_KEY в .env файл!';
-  }
-  
-  try {
-    const response = await axios.post(
-      DEEPSEEK_API_URL,
-      {
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: `Ты бот "Andrysha nextbot" в мессенджере Potatuika. 
-                      Твой создатель - Andrysha. 
-                      Ты общаешься с пользователем ${username}.
-                      Отвечай кратко (1-2 предложения), дружелюбно, используй эмодзи.
-                      Будь веселым и полезным. Если тебя спрашивают о возможностях - расскажи, что ты на DeepSeek API.`
-          },
-          {
-            role: 'user',
-            content: userMessage
-          }
-        ],
-        temperature: 0.9,
-        max_tokens: 300
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    return response.data.choices[0].message.content;
-  } catch (error) {
-    console.error('DeepSeek ошибка:', error.response?.data || error.message);
-    const fallbacks = [
-      '🤖 Ой, у меня проблемы с интернетом... Напиши позже!',
-      '😅 Что-то я завис... Попробуй еще раз!',
-      '🔌 Кажется, DeepSeek отключился... Напиши позже!'
-    ];
-    return fallbacks[Math.floor(Math.random() * fallbacks.length)];
-  }
-}
-
-// ===== БОТ ANDRYSHA NEXTBOT =====
-const BOT_USERNAME = 'andrysha_nextbot';
-const BOT_DISPLAY_NAME = 'Andrysha nextbot 🤖';
-const BOT_AVATAR_URL = '/avatars/andrysha_bot.png';
-
-async function initBot() {
-  const botExists = users[BOT_USERNAME];
-  
-  if (!botExists) {
-    const botPasswordHash = await bcrypt.hash('bot123456', 10);
-    users[BOT_USERNAME] = {
-      username: BOT_USERNAME,
-      passwordHash: botPasswordHash,
-      displayName: BOT_DISPLAY_NAME,
-      bio: '🤖 Я умный бот на DeepSeek API! Могу отвечать на любые вопросы, шутить и помогать! Спрашивай что угодно!',
-      avatar: BOT_AVATAR_URL,
-      theme: 'purple-green',
-      isBot: true,
-      createdAt: Date.now(),
-      online: true,
-      lastSeen: Date.now()
-    };
-    console.log('🤖 Бот Andrysha nextbot (DeepSeek) создан!');
-    saveAll();
-  } else {
-    if (!users[BOT_USERNAME].avatar) {
-      users[BOT_USERNAME].avatar = BOT_AVATAR_URL;
-      saveAll();
-    }
-    users[BOT_USERNAME].online = true;
-    users[BOT_USERNAME].lastSeen = Date.now();
-  }
-}
-
 // ===== API =====
 app.post('/api/register', async (req, res) => {
   const { username, password, displayName } = req.body;
@@ -199,15 +107,14 @@ app.post('/api/register', async (req, res) => {
     theme: 'purple-green',
     isBot: false,
     createdAt: Date.now(),
-    online: true,
-    lastSeen: Date.now()
+    online: false,
+    lastSeen: null
   };
   
   const token = jwt.sign({ username: cleanUser }, 'SECRET_KEY');
   sessions[token] = cleanUser;
   saveAll();
   
-  // Сразу возвращаем токен и пользователя (авто-вход после регистрации)
   res.json({ token, user: users[cleanUser] });
 });
 
@@ -305,6 +212,48 @@ app.post('/api/create-channel', (req, res) => {
   res.json({ success: true, channel: channels[channelId] });
 });
 
+app.post('/api/invite-to-group', async (req, res) => {
+  const { token, groupId, username } = req.body;
+  const session = await Session.findOne({ token });
+  if (!session) return res.status(401).json({ error: 'Не авторизован' });
+  
+  const group = groups[groupId];
+  if (!group) return res.status(404).json({ error: 'Группа не найдена' });
+  
+  if (!group.admins.includes(session.username)) {
+    return res.status(403).json({ error: 'Только админ может приглашать' });
+  }
+  
+  const cleanUser = cleanUsername(username);
+  if (!users[cleanUser]) return res.status(404).json({ error: 'Пользователь не найден' });
+  
+  if (!group.invites) group.invites = [];
+  if (!group.invites.includes(cleanUser)) {
+    group.invites.push(cleanUser);
+    saveAll();
+  }
+  
+  res.json({ success: true, message: `Приглашение отправлено ${cleanUser}` });
+});
+
+app.post('/api/join-group', async (req, res) => {
+  const { token, groupId } = req.body;
+  const username = sessions[token];
+  if (!username) return res.status(401).json({ error: 'Не авторизован' });
+  
+  const group = groups[groupId];
+  if (!group) return res.status(404).json({ error: 'Группа не найдена' });
+  
+  if (group.invites && group.invites.includes(username)) {
+    group.members.push(username);
+    group.invites = group.invites.filter(i => i !== username);
+    saveAll();
+    res.json({ success: true });
+  } else {
+    res.status(403).json({ error: 'У вас нет приглашения' });
+  }
+});
+
 app.get('/api/search', (req, res) => {
   const query = req.query.q?.toLowerCase() || '';
   const cleanQuery = cleanUsername(query);
@@ -351,7 +300,7 @@ io.use((socket, next) => {
   next();
 });
 
-io.on('connection', async (socket) => {
+io.on('connection', (socket) => {
   const username = socket.username;
   console.log(`✅ ${username} подключился`);
   
@@ -368,9 +317,6 @@ io.on('connection', async (socket) => {
       lastSeenFormatted: formatLastSeen(users[username].lastSeen)
     });
   }
-  
-  // Инициализируем бота
-  await initBot();
   
   // Отправляем все чаты пользователя
   const userGroups = Object.values(groups).filter(g => g.members.includes(username));
@@ -391,12 +337,6 @@ io.on('connection', async (socket) => {
     }
   });
   
-  // Добавляем чат с ботом если его нет
-  const botChatId = [username, BOT_USERNAME].sort().join('_');
-  if (!userDMs.find(dm => dm.with === BOT_USERNAME)) {
-    userDMs.push({ id: botChatId, type: 'dm', with: BOT_USERNAME });
-  }
-  
   socket.emit('init', {
     user: users[username],
     chats: [...userDMs, ...userGroups, ...userChannels]
@@ -416,53 +356,10 @@ io.on('connection', async (socket) => {
   socket.emit('all_user_statuses', allStatuses);
   
   // Отправка сообщения
-  socket.on('send_message', async (data) => {
+  socket.on('send_message', (data) => {
     const { to, type, text, attachments } = data;
+    console.log(`📨 Сообщение от ${username} для ${to} (${type}): "${text}"`);
     
-    // Обработка сообщений боту с DeepSeek
-    if (type === 'dm' && to === BOT_USERNAME) {
-      const botReply = await getBotReply(text, username);
-      
-      const chatId = [username, BOT_USERNAME].sort().join('_');
-      
-      const userMessage = {
-        id: uuidv4(),
-        from: username,
-        to: BOT_USERNAME,
-        text: text,
-        attachments: [],
-        timestamp: Date.now(),
-        type: 'dm',
-        read: false
-      };
-      
-      const botMessage = {
-        id: uuidv4(),
-        from: BOT_USERNAME,
-        to: username,
-        text: botReply,
-        attachments: [],
-        timestamp: Date.now(),
-        type: 'dm',
-        read: false
-      };
-      
-      if (!messages[chatId]) messages[chatId] = [];
-      messages[chatId].push(userMessage);
-      messages[chatId].push(botMessage);
-      saveAll();
-      
-      socket.emit('new_message', userMessage);
-      socket.emit('new_message', botMessage);
-      
-      const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === username);
-      if (recipientSocket) {
-        recipientSocket.emit('new_message', botMessage);
-      }
-      return;
-    }
-    
-    // Обычная отправка
     const message = {
       id: uuidv4(),
       from: username,
@@ -528,6 +425,7 @@ io.on('connection', async (socket) => {
   // Загрузка истории
   socket.on('load_chat', ({ chatId }) => {
     const history = messages[chatId] || [];
+    console.log(`📜 История чата ${chatId}: ${history.length} сообщений`);
     socket.emit('chat_history', { chatId, messages: history });
   });
   
@@ -542,6 +440,11 @@ io.on('connection', async (socket) => {
         lastSeenFormatted: formatLastSeen(user.lastSeen)
       });
     }
+  });
+  
+  // Печатает...
+  socket.on('typing', ({ chatId, isTyping }) => {
+    socket.broadcast.emit('user_typing', { username, chatId, isTyping });
   });
   
   socket.on('disconnect', () => {
@@ -561,15 +464,12 @@ io.on('connection', async (socket) => {
   });
 });
 
-// Авто-сохранение каждые 5 секунд
-setInterval(() => saveAll(), 5000);
-
-// Запуск бота
-initBot();
+// Авто-сохранение каждые 10 секунд
+setInterval(() => saveAll(), 10000);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log('💜💚 POTATUIKA ЗАПУЩЕН!');
   console.log(`📍 http://localhost:${PORT}`);
-  console.log('🤖 Бот Andrysha nextbot на DeepSeek API готов к общению!');
+  console.log('📝 Тестовые аккаунты: alex/123  или  maria/123');
 });
