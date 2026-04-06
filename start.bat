@@ -2,7 +2,6 @@
 title Potatuika Messenger
 color 0A
 
-:: Переход в папку с проектом (ИЗМЕНИ ПУТЬ НА СВОЙ!)
 cd /d F:\potatuika
 
 :MENU
@@ -36,11 +35,6 @@ goto MENU
 cls
 echo Starting server...
 cd /d F:\potatuika\backend
-if not exist package.json (
-    echo ERROR: package.json not found in backend folder!
-    pause
-    goto MENU
-)
 call npm start
 pause
 goto MENU
@@ -49,14 +43,9 @@ goto MENU
 cls
 echo Updating GitHub...
 cd /d F:\potatuika
-if not exist .git (
-    echo ERROR: Not a git repository!
-    echo Run: git init
-    pause
-    goto MENU
-)
 git add .
-set /p commit_msg="Enter commit message (press Enter for 'Update'): "
+echo.
+set /p commit_msg="Enter commit message: "
 if "%commit_msg%"=="" set commit_msg=Update
 git commit -m "%commit_msg%"
 git push origin master --force
@@ -69,7 +58,10 @@ cls
 echo Updating GitHub...
 cd /d F:\potatuika
 git add .
-git commit -m "Auto-update before start"
+echo.
+set /p commit_msg="Enter commit message: "
+if "%commit_msg%"=="" set commit_msg=Update
+git commit -m "%commit_msg%"
 git push origin master --force
 echo GitHub updated!
 echo.
@@ -101,25 +93,18 @@ goto MENU
 cls
 cd /d F:\potatuika
 echo =============================================
-echo   WARNING! This will DELETE:
-echo   - All users
-echo   - All messages
-echo   - All groups and channels
+echo   WARNING! This will DELETE all data!
 echo =============================================
 echo.
 set /p confirm="Are you SURE? (y/n): "
 if /i "%confirm%"=="y" (
     if exist backend\data (
         rmdir /s /q backend\data
-        echo [OK] data folder deleted
         mkdir backend\data
-        echo [OK] clean data folder created
-    ) else (
-        echo [INFO] data folder not found
     )
-    echo [OK] Database reset!
+    echo Database reset!
 ) else (
-    echo [CANCELLED]
+    echo Cancelled
 )
 pause
 goto MENU
