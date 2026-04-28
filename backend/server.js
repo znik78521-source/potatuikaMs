@@ -14,8 +14,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const httpServer = createServer(app);
+const io = new Server(httpServer, { cors: { origin: "*" } });
 
 app.use(cors());
 app.use(express.json());
@@ -23,207 +23,252 @@ app.use('/uploads', express.static('uploads'));
 app.use('/avatars', express.static('avatars'));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// папки
-['uploads', 'avatars', 'data'].forEach(d => {
-  if (!fs.existsSync(d)) fs.mkdirSync(d);
+['uploads', 'avatars', 'data'].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 });
 
 const DATA_DIR = './data';
-const load = (f) => {
-  try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), 'utf8')); } catch { return {}; }
+const loadData = (filename) => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(DATA_DIR, filename), 'utf8'));
+  } catch {
+    return {};
+  }
 };
-const save = (f, d) => fs.writeFileSync(path.join(DATA_DIR, f), JSON.stringify(d, null, 2));
+const saveData = (filename, data) => {
+  fs.writeFileSync(path.join(DATA_DIR, filename), JSON.stringify(data, null, 2));
+};
 
-let users = load('users.json');
-let messages = load('messages.json');
-let sessions = load('sessions.json');
+let users = loadData('users.json');
+let messages = loadData('messages.json');
+let groups = loadData('groups.json');
+let channels = loadData('channels.json');
+let sessions = loadData('sessions.json');
 
 const saveAll = () => {
-  save('users.json', users);
-  save('messages.json', messages);
-  save('sessions.json', sessions);
+  saveData('users.json', users);
+  saveData('messages.json', messages);
+  saveData('groups.json', groups);
+  saveData('channels.json', channels);
+  saveData('sessions.json', sessions);
 };
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, file.fieldname === 'avatar' ? 'avatars' : 'uploads'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+  destination: (req, file, cb) => {
+    const folder = file.fieldname === 'avatar' ? 'avatars' : 'uploads';
+    cb(null, folder);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
 });
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
-function cleanUsername(u) {
-  if (!u) return '';
-  while (u.startsWith('@')) u = u.slice(1);
-  return u;
+function cleanUsername(username) {
+  if (!username) return '';
+  while (username.startsWith('@')) username = username.substring(1);
+  return username;
 }
 
-function formatLastSeen(ts) {
-  if (!ts) return 'давно';
-  const m = Math.floor((Date.now() - ts) / 60000);
-  if (m < 1) return 'только что';
-  if (m < 60) return `${m} мин назад`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ч назад`;
-  return `${Math.floor(h / 24)} д назад`;
+function formatLastSeen(timestamp) {
+  if (!timestamp) return 'давно';
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (minutes < 1) return 'только что';
+  if (minutes < 60) return `${minutes} мин назад`;
+  if (hours < 24) return `${hours} ч назад`;
+  return `${days} д назад`;
 }
 
-// ------------------ API ------------------
 app.post('/api/register', async (req, res) => {
   const { username, password, displayName } = req.body;
-  const clean = cleanUsername(username);
-  if (users[clean]) return res.status(400).json({ error: 'Уже есть' });
-  const hash = await bcrypt.hash(password, 10);
-  users[clean] = {
-    username: clean,
-    passwordHash: hash,
-    displayName: displayName || clean,
-    avatar: null,
-    online: false,
-    lastSeen: null
+  const cleanUser = cleanUsername(username);
+  if (users[cleanUser]) return res.status(400).json({ error: 'Username уже существует' });
+  const passwordHash = await bcrypt.hash(password, 10);
+  users[cleanUser] = {
+    username: cleanUser, passwordHash, displayName: displayName || cleanUser, bio: '', avatar: null,
+    theme: 'purple-green', createdAt: Date.now(), online: false, lastSeen: null
   };
-  const token = jwt.sign({ username: clean }, 'SECRET');
-  sessions[token] = clean;
+  const token = jwt.sign({ username: cleanUser }, 'SECRET_KEY');
+  sessions[token] = cleanUser;
   saveAll();
-  res.json({ token, user: users[clean] });
+  res.json({ token, user: users[cleanUser] });
 });
 
 app.post('/api/login', async (req, res) => {
-  const { username, password, token: saved } = req.body;
-  if (saved && sessions[saved]) {
-    const name = sessions[saved];
-    if (users[name]) return res.json({ token: saved, user: users[name] });
+  const { username, password, token: savedToken } = req.body;
+  if (savedToken && sessions[savedToken]) {
+    const usernameFromToken = sessions[savedToken];
+    if (users[usernameFromToken]) return res.json({ token: savedToken, user: users[usernameFromToken] });
   }
-  const clean = cleanUsername(username);
-  const user = users[clean];
-  if (!user || !(await bcrypt.compare(password, user.passwordHash)))
-    return res.status(401).json({ error: 'Неверно' });
-  const token = jwt.sign({ username: clean }, 'SECRET');
-  sessions[token] = clean;
+  const cleanUser = cleanUsername(username);
+  const user = users[cleanUser];
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: 'Неверный логин или пароль' });
+  }
+  const token = jwt.sign({ username: cleanUser }, 'SECRET_KEY');
+  sessions[token] = cleanUser;
   saveAll();
   res.json({ token, user });
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
-  const url = `/${req.file.fieldname === 'avatar' ? 'avatars' : 'uploads'}/${req.file.filename}`;
+  const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : 'uploads'}/${req.file.filename}`;
   const type = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
-  res.json({ url, type, name: req.file.originalname });
+  res.json({ url: fileUrl, type, name: req.file.originalname });
 });
 
-app.post('/api/update-profile', (req, res) => {
+app.post('/api/update-profile', async (req, res) => {
   const { token, displayName, bio, avatar, theme } = req.body;
-  const name = sessions[token];
-  if (users[name]) {
-    if (displayName) users[name].displayName = displayName;
-    if (bio !== undefined) users[name].bio = bio;
-    if (avatar) users[name].avatar = avatar;
-    if (theme) users[name].theme = theme;
+  const username = sessions[token];
+  if (users[username]) {
+    if (displayName) users[username].displayName = displayName;
+    if (bio !== undefined) users[username].bio = bio;
+    if (avatar) users[username].avatar = avatar;
+    if (theme) users[username].theme = theme;
     saveAll();
-    res.json({ success: true, user: users[name] });
-  } else res.status(401).json({ error: 'Не авторизован' });
+    res.json({ success: true, user: users[username] });
+  } else {
+    res.status(401).json({ error: 'Не авторизован' });
+  }
+});
+
+app.post('/api/create-group', (req, res) => {
+  const { token, name, description } = req.body;
+  const creator = sessions[token];
+  const groupId = uuidv4();
+  groups[groupId] = {
+    id: groupId, type: 'group', name, description: description || '', avatar: null, creator,
+    members: [creator], admins: [creator], createdAt: Date.now()
+  };
+  saveAll();
+  res.json({ success: true, group: groups[groupId] });
+});
+
+app.post('/api/create-channel', (req, res) => {
+  const { token, name, description } = req.body;
+  const creator = sessions[token];
+  const channelId = uuidv4();
+  channels[channelId] = {
+    id: channelId, type: 'channel', name, description: description || '', avatar: null, creator,
+    subscribers: [creator], createdAt: Date.now()
+  };
+  saveAll();
+  res.json({ success: true, channel: channels[channelId] });
 });
 
 app.get('/api/search', (req, res) => {
-  const q = req.query.q?.toLowerCase() || '';
-  const clean = cleanUsername(q);
-  const list = Object.values(users).filter(u =>
-    u.username.includes(clean) || u.displayName?.toLowerCase().includes(clean)
-  ).map(u => ({ username: u.username, displayName: u.displayName, avatar: u.avatar, online: u.online, lastSeen: u.lastSeen }));
-  res.json(list);
+  const query = req.query.q?.toLowerCase() || '';
+  const cleanQuery = cleanUsername(query);
+  const results = Object.values(users)
+    .filter(u => u.username.toLowerCase().includes(cleanQuery) || u.displayName.toLowerCase().includes(cleanQuery))
+    .map(u => ({ username: u.username, displayName: u.displayName, avatar: u.avatar, online: u.online, lastSeen: u.lastSeen }));
+  res.json(results);
 });
 
 app.get('/api/user-status/:username', (req, res) => {
   const user = users[req.params.username];
-  if (user) res.json({ online: user.online || false, lastSeen: user.lastSeen, lastSeenFormatted: formatLastSeen(user.lastSeen) });
-  else res.status(404).json({ error: 'Нет' });
+  if (user) {
+    res.json({ online: user.online || false, lastSeen: user.lastSeen, lastSeenFormatted: formatLastSeen(user.lastSeen) });
+  } else {
+    res.status(404).json({ error: 'Пользователь не найден' });
+  }
 });
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// ------------------ WEBSOCKET ------------------
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Нет токена'));
-  const name = sessions[token];
-  if (!name) return next(new Error('Неверный токен'));
-  socket.username = name;
+  const username = sessions[token];
+  if (!username) return next(new Error('Неверный токен'));
+  socket.username = username;
   next();
 });
 
 io.on('connection', (socket) => {
   const username = socket.username;
-  console.log(`✅ ${username} connected`);
-
-  // статус онлайн
+  console.log(`✅ ${username} подключился`);
+  
   if (users[username]) {
     users[username].online = true;
     users[username].lastSeen = Date.now();
     saveAll();
     io.emit('user_status_change', { username, online: true, lastSeen: users[username].lastSeen, lastSeenFormatted: formatLastSeen(users[username].lastSeen) });
   }
-
-  // подписываем на личную комнату (ОЧЕНЬ ВАЖНО!)
-  socket.join(username);
-
-  // собираем чаты
-  const dmChats = [];
+  
+  const userGroups = Object.values(groups).filter(g => g.members.includes(username));
+  const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
+  const userDMs = [];
+  
   Object.keys(messages).forEach(chatId => {
     if (chatId.includes(username)) {
       const other = chatId.replace(username, '').replace(/_/g, '');
       if (other && users[other]) {
-        dmChats.push({ id: chatId, type: 'dm', with: other, lastMessage: messages[chatId][messages[chatId].length - 1] });
+        userDMs.push({ id: chatId, type: 'dm', with: other, lastMessage: messages[chatId][messages[chatId].length - 1] });
       }
     }
   });
-
-  socket.emit('init', {
-    user: users[username],
-    chats: dmChats
-  });
-
-  // ========= ОТПРАВКА СООБЩЕНИЯ =========
+  
+  socket.emit('init', { user: users[username], chats: [...userDMs, ...userGroups, ...userChannels] });
+  
   socket.on('send_message', (data) => {
-    const { to, type, text, attachments } = data;
-    console.log(`✉️ ${username} -> ${to} : ${text}`);
-
+    const { to, type, text, attachments } = data; // 'to' здесь может быть chatId или имя группы
+    
     const message = {
-      id: uuidv4(),
-      from: username,
-      to: to,
-      text: text,
-      attachments: attachments || [],
-      timestamp: Date.now(),
-      type: type
+        id: uuidv4(),
+        from: username,
+        to, // сохраняем куда отправлено
+        text,
+        attachments: attachments || [],
+        timestamp: Date.now(),
+        type,
+        read: false
     };
 
-    let chatId;
+    let chatId = to; // Для групп и каналов ID совпадает с 'to'
+
     if (type === 'dm') {
-      chatId = [username, to].sort().join('_');
-      if (!messages[chatId]) messages[chatId] = [];
-      messages[chatId].push(message);
-      saveAll();
+        // 'to' в DM — это ID чата вида 'user1_user2'
+        chatId = to;
+        if (!messages[chatId]) messages[chatId] = [];
+        messages[chatId].push(message);
+        saveAll();
 
-      // себе
-      socket.emit('new_message', message);
-      // получателю (ОБЯЗАТЕЛЬНО через комнату)
-      io.to(to).emit('new_message', message);
-      console.log(`✅ отправлено ${to}`);
+        // Отправляем себе
+        socket.emit('new_message', message);
+
+        // Находим собеседника: вычитаем себя из ID чата
+        const recipientName = chatId.split('_').find(name => name !== username);
+        
+        // Отправляем собеседнику
+        const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === recipientName);
+        if (recipientSocket) {
+            recipientSocket.emit('new_message', message);
+        }
+    } else {
+        // Логика для групп/каналов (если будешь доделывать)
+        if (!messages[chatId]) messages[chatId] = [];
+        messages[chatId].push(message);
+        saveAll();
+        io.emit('new_message', message); 
     }
-  });
+});
 
+  
   socket.on('load_chat', ({ chatId }) => {
     socket.emit('chat_history', { chatId, messages: messages[chatId] || [] });
   });
-
+  
   socket.on('get_user_status', ({ username: target }) => {
-    const u = users[target];
-    if (u) socket.emit('user_status', { username: target, online: u.online, lastSeen: u.lastSeen, lastSeenFormatted: formatLastSeen(u.lastSeen) });
+    const user = users[target];
+    if (user) socket.emit('user_status', { username: target, online: user.online || false, lastSeen: user.lastSeen, lastSeenFormatted: formatLastSeen(user.lastSeen) });
   });
-
-  socket.on('typing', ({ chatId, isTyping }) => {
-    socket.to(chatId).emit('user_typing', { username, chatId, isTyping });
-  });
-
+  
   socket.on('disconnect', () => {
     if (users[username]) {
       users[username].online = false;
@@ -231,11 +276,13 @@ io.on('connection', (socket) => {
       saveAll();
       io.emit('user_status_change', { username, online: false, lastSeen: users[username].lastSeen, lastSeenFormatted: formatLastSeen(users[username].lastSeen) });
     }
-    console.log(`❌ ${username} disconnected`);
+    console.log(`❌ ${username} отключился`);
   });
 });
 
+setInterval(() => saveAll(), 10000);
+
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`💜💚 Potatuika работает на http://localhost:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`💜💚 Potatuika запущен на http://localhost:${PORT}`);
 });
