@@ -237,7 +237,7 @@ io.on('connection', (socket) => {
       const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === recipientName);
       if (recipientSocket) {
         recipientSocket.emit('new_message', message);
-        recipientSocket.emit('refresh_chats'); // 👈 заставляет обновить список чатов у получателя
+        recipientSocket.emit('refresh_chats');
       }
     } else {
       if (!messages[to]) messages[to] = [];
