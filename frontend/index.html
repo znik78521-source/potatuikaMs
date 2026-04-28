@@ -2,85 +2,90 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Potatuika Test</title>
+    <title>Potatuika Test (100%)</title>
     <style>
-        body { font-family: sans-serif; background: #1a0b2e; color: white; padding: 20px; }
-        .chat { margin-top: 20px; border-top: 1px solid #b77bff; padding-top: 10px; }
-        .message { padding: 8px; margin: 5px 0; border-radius: 12px; max-width: 70%; }
-        .own { background: #00ffaa; color: #1a0b2e; align-self: flex-end; margin-left: auto; }
+        body { background: #1a0b2e; color: white; font-family: system-ui; padding: 20px; }
+        .flex { display: flex; gap: 20px; flex-wrap: wrap; }
+        .chat { flex: 2; min-width: 300px; background: #0e0518; border-radius: 20px; padding: 16px; }
+        .sidebar { flex: 1; min-width: 220px; background: #0e0518; border-radius: 20px; padding: 16px; }
+        .messages { height: 400px; overflow-y: auto; border: 1px solid #b77bff; padding: 8px; margin: 10px 0; border-radius: 16px; }
+        .msg { padding: 8px; margin: 6px 0; border-radius: 16px; max-width: 70%; }
+        .my { background: #00ffaa; color: #000; margin-left: auto; text-align: right; }
         .other { background: #2a1a3e; }
-        .messages { display: flex; flex-direction: column; height: 300px; overflow-y: auto; margin-bottom: 10px; background: #0e0518; padding: 10px; border-radius: 16px; }
-        input, button { padding: 8px; margin: 5px; }
-        button { background: #b77bff; border: none; border-radius: 20px; cursor: pointer; }
-        .online { color: #00ffaa; font-size: 12px; }
+        input, button { padding: 8px; margin: 4px; border-radius: 20px; border: none; }
+        button { background: #b77bff; cursor: pointer; font-weight: bold; }
+        .user-btn { background: #2a1a3e; margin: 4px 0; display: block; width: 100%; text-align: left; }
     </style>
 </head>
 <body>
+    <h2>💜💚 POTATUIKA (чистый тест)</h2>
     <div id="auth">
-        <h2>Вход / Регистрация</h2>
-        <input id="login" placeholder="username"><br>
-        <input id="pass" type="password" placeholder="пароль"><br>
-        <button id="doLogin">Войти</button>
-        <button id="doRegister">Регистрация</button>
+        <input id="username" placeholder="Логин (без @)"> <br>
+        <input id="password" type="password" placeholder="Пароль"> <br>
+        <button id="loginBtn">Войти</button>
+        <button id="registerBtn">Регистрация</button>
     </div>
 
-    <div id="app" style="display:none">
-        <div><b id="myName"></b> <span id="status" class="online"></span></div>
-        <div>
-            <input id="search" placeholder="Поиск пользователя...">
-            <div id="usersList" style="border:1px solid #b77bff; margin:10px 0; padding:5px; max-height:150px; overflow-y:auto"></div>
-        </div>
-        <div class="chat">
-            <div id="chatWith"></div>
-            <div class="messages" id="messages"></div>
-            <input id="messageInput" placeholder="Сообщение...">
-            <button id="sendBtn">Отправить</button>
+    <div id="app" style="display: none;">
+        <div class="flex">
+            <div class="sidebar">
+                <h3>👤 <span id="myName"></span> <span id="onlineStatus"></span></h3>
+                <input id="searchInput" placeholder="🔍 Найти пользователя..." style="width: 100%;">
+                <div id="searchResults" style="margin-top: 12px;"></div>
+            </div>
+            <div class="chat">
+                <div id="chatHeader">📭 Выберите собеседника</div>
+                <div class="messages" id="messages"></div>
+                <div style="display: flex;">
+                    <input id="msgInput" placeholder="Сообщение..." style="flex: 1;">
+                    <button id="sendMsgBtn">➤ Отправить</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        let socket, currentUser, currentChatId, currentChatName;
+        let socket, currentUser, currentChatId, currentChatUsername;
         let token = localStorage.getItem('token');
-
         const authDiv = document.getElementById('auth');
         const appDiv = document.getElementById('app');
         const myNameSpan = document.getElementById('myName');
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        const chatHeader = document.getElementById('chatHeader');
         const messagesDiv = document.getElementById('messages');
-        const searchInput = document.getElementById('search');
-        const usersListDiv = document.getElementById('usersList');
-        const chatWithSpan = document.getElementById('chatWith');
-        const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendMsgBtn');
 
-        async function request(url, data) {
+        async function api(method, url, body) {
             const res = await fetch(url, {
-                method: 'POST',
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: JSON.stringify(body)
             });
             return res.json();
         }
 
-        document.getElementById('doRegister').onclick = async () => {
-            const u = document.getElementById('login').value.trim();
-            const p = document.getElementById('pass').value;
+        document.getElementById('registerBtn').onclick = async () => {
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
             if (!u || !p) return;
-            const res = await request('/api/register', { username: u, password: p, displayName: u });
-            if (res.token) {
-                token = res.token;
+            const data = await api('POST', '/api/register', { username: u, password: p, displayName: u });
+            if (data.token) {
+                token = data.token;
                 localStorage.setItem('token', token);
                 start();
-            } else alert('Ошибка рег');
+            } else alert('Ошибка регистрации');
         };
 
-        document.getElementById('doLogin').onclick = async () => {
-            const u = document.getElementById('login').value.trim();
-            const p = document.getElementById('pass').value;
+        document.getElementById('loginBtn').onclick = async () => {
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
             if (!u || !p) return;
-            const res = await request('/api/login', { username: u, password: p });
-            if (res.token) {
-                token = res.token;
+            const data = await api('POST', '/api/login', { username: u, password: p });
+            if (data.token) {
+                token = data.token;
                 localStorage.setItem('token', token);
                 start();
             } else alert('Ошибка входа');
@@ -93,82 +98,86 @@
         }
 
         function connectSocket() {
+            if (socket) socket.disconnect();
             socket = io({ auth: { token } });
-            socket.on('connect', () => console.log('socket connected'));
+
+            socket.on('connect', () => console.log('✅ сокет подключен'));
+
             socket.on('init', (data) => {
                 currentUser = data.user;
-                myNameSpan.innerText = currentUser.displayName || currentUser.username;
-                document.getElementById('status').innerText = 'онлайн';
+                myNameSpan.innerText = currentUser.displayName;
             });
 
             socket.on('new_message', (msg) => {
-                console.log('📨 ПОЛУЧЕНО СООБЩЕНИЕ:', msg);
+                console.log('🔥 НОВОЕ СООБЩЕНИЕ:', msg);
                 if (currentChatId === msg.to || currentChatId === msg.from || msg.to === currentChatId || msg.from === currentChatId) {
-                    addMessage(msg);
+                    appendMessage(msg);
                 } else {
-                    console.log('⚠️ не в активный чат, но сообщение есть');
-                    // обновим список чатов/пользователей
-                    loadUsers();
+                    console.log('⚠️ сообщение в другой чат, но оно пришло:', msg.from);
+                    // уведомление / подсветка
                 }
             });
 
             socket.on('chat_history', (data) => {
                 messagesDiv.innerHTML = '';
-                (data.messages || []).forEach(m => addMessage(m));
+                (data.messages || []).forEach(m => appendMessage(m));
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
             });
 
-            socket.on('user_status', (u) => {
-                if (currentChatName === '@'+u.username) {
-                    document.getElementById('status').innerHTML = u.online ? '🟢 онлайн' : `⚫ был ${u.lastSeenFormatted}`;
+            socket.on('user_status', (data) => {
+                if (currentChatUsername === data.username) {
+                    const statusSpan = document.getElementById('onlineStatus');
+                    if (statusSpan) statusSpan.innerText = data.online ? '🟢 онлайн' : `⚫ был(а) ${data.lastSeenFormatted}`;
                 }
+            });
+
+            // автоматически грузим результаты поиска при изменении поля
+            if (searchInput) searchInput.addEventListener('input', () => searchUsers(searchInput.value));
+        }
+
+        async function searchUsers(query) {
+            if (!query) { searchResults.innerHTML = ''; return; }
+            const users = await (await fetch(`/api/search?q=${query}`)).json();
+            searchResults.innerHTML = '';
+            users.forEach(u => {
+                const btn = document.createElement('button');
+                btn.innerText = `${u.displayName} (@${u.username})`;
+                btn.className = 'user-btn';
+                btn.onclick = () => openChat(u.username, u.displayName);
+                searchResults.appendChild(btn);
             });
         }
 
-        function addMessage(msg) {
+        function openChat(username, displayName) {
+            currentChatUsername = username;
+            currentChatId = [currentUser.username, username].sort().join('_');
+            chatHeader.innerText = `📩 Чат с ${displayName} (@${username})`;
+            socket.emit('load_chat', { chatId: currentChatId });
+            socket.emit('get_user_status', { username });
+        }
+
+        function appendMessage(msg) {
             const div = document.createElement('div');
-            div.className = `message ${msg.from === currentUser.username ? 'own' : 'other'}`;
-            div.innerHTML = `<b>${msg.from}</b> ${msg.text}<br><small>${new Date(msg.timestamp).toLocaleTimeString()}</small>`;
+            div.className = `msg ${msg.from === currentUser.username ? 'my' : 'other'}`;
+            div.innerHTML = `<b>${msg.from}</b> ${msg.text}<br><span style="font-size:10px;">${new Date(msg.timestamp).toLocaleTimeString()}</span>`;
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        async function loadUsers() {
-            const q = searchInput.value.trim();
-            if (!q) return;
-            const res = await fetch(`/api/search?q=${q}`);
-            const users = await res.json();
-            usersListDiv.innerHTML = '';
-            users.forEach(u => {
-                const btn = document.createElement('button');
-                btn.innerText = `${u.displayName} (@${u.username})`;
-                btn.style.display = 'block';
-                btn.onclick = () => {
-                    currentChatName = '@'+u.username;
-                    currentChatId = [currentUser.username, u.username].sort().join('_');
-                    chatWithSpan.innerText = `Чат с ${u.displayName}`;
-                    socket.emit('load_chat', { chatId: currentChatId });
-                    socket.emit('get_user_status', { username: u.username });
-                };
-                usersListDiv.appendChild(btn);
-            });
-        }
-
-        searchInput.addEventListener('input', loadUsers);
-
         sendBtn.onclick = () => {
-            const text = messageInput.value.trim();
+            const text = msgInput.value.trim();
             if (!text || !currentChatId) return;
-            console.log('📤 отправляем', { to: currentChatId, text });
             socket.emit('send_message', {
                 to: currentChatId,
                 type: 'dm',
                 text: text,
                 attachments: []
             });
-            messageInput.value = '';
+            msgInput.value = '';
         };
 
         if (token) start();
+        else authDiv.style.display = 'block';
     </script>
 </body>
 </html>
