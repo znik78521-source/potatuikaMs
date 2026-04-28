@@ -273,3 +273,6 @@ const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`💜💚 Potatuika запущен на http://localhost:${PORT}`);
 });
+app.get('/manifest.json', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/manifest.json'));
+});
