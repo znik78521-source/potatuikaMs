@@ -19,15 +19,7 @@ const io = new Server(httpServer, { cors: { origin: "*" } });
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static('uploads', {
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.mp3')) res.setHeader('Content-Type', 'audio/mpeg');
-    if (filePath.endsWith('.mp4')) res.setHeader('Content-Type', 'video/mp4');
-    if (filePath.endsWith('.webm')) res.setHeader('Content-Type', 'video/webm');
-    if (filePath.endsWith('.ogg')) res.setHeader('Content-Type', 'audio/ogg');
-    res.setHeader('Content-Disposition', 'inline');
-  }
-}));
+app.use('/uploads', express.static('uploads'));
 app.use('/avatars', express.static('avatars'));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
@@ -205,18 +197,18 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   const username = socket.username;
   console.log(`✅ ${username} подключился`);
-  
+
   if (users[username]) {
     users[username].online = true;
     users[username].lastSeen = Date.now();
     saveAll();
     io.emit('user_status_change', { username, online: true, lastSeen: users[username].lastSeen, lastSeenFormatted: formatLastSeen(users[username].lastSeen) });
   }
-  
+
   const userGroups = Object.values(groups).filter(g => g.members.includes(username));
   const userChannels = Object.values(channels).filter(c => c.subscribers.includes(username));
   const userDMs = [];
-  
+
   Object.keys(messages).forEach(chatId => {
     if (chatId.includes(username)) {
       const other = chatId.replace(username, '').replace(/_/g, '');
@@ -225,22 +217,28 @@ io.on('connection', (socket) => {
       }
     }
   });
-  
+
   socket.emit('init', { user: users[username], chats: [...userDMs, ...userGroups, ...userChannels] });
-  
+
   socket.on('send_message', (data) => {
     const { to, type, text, attachments } = data;
     const message = {
       id: uuidv4(), from: username, to, text, attachments: attachments || [], timestamp: Date.now(), type, read: false
     };
+
     if (type === 'dm') {
       if (!messages[to]) messages[to] = [];
       messages[to].push(message);
       saveAll();
+
       socket.emit('new_message', message);
+
       const recipientName = to.split('_').find(name => name !== username);
       const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === recipientName);
-      if (recipientSocket) recipientSocket.emit('new_message', message);
+      if (recipientSocket) {
+        recipientSocket.emit('new_message', message);
+        recipientSocket.emit('refresh_chats'); // 👈 заставляет обновить список чатов у получателя
+      }
     } else {
       if (!messages[to]) messages[to] = [];
       messages[to].push(message);
@@ -248,16 +246,16 @@ io.on('connection', (socket) => {
       io.emit('new_message', message);
     }
   });
-  
+
   socket.on('load_chat', ({ chatId }) => {
     socket.emit('chat_history', { chatId, messages: messages[chatId] || [] });
   });
-  
+
   socket.on('get_user_status', ({ username: target }) => {
     const user = users[target];
     if (user) socket.emit('user_status', { username: target, online: user.online || false, lastSeen: user.lastSeen, lastSeenFormatted: formatLastSeen(user.lastSeen) });
   });
-  
+
   socket.on('disconnect', () => {
     if (users[username]) {
       users[username].online = false;
