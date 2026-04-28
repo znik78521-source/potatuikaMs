@@ -19,7 +19,15 @@ const io = new Server(httpServer, { cors: { origin: "*" } });
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static('uploads', {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.mp3')) res.setHeader('Content-Type', 'audio/mpeg');
+    if (filePath.endsWith('.mp4')) res.setHeader('Content-Type', 'video/mp4');
+    if (filePath.endsWith('.webm')) res.setHeader('Content-Type', 'video/webm');
+    if (filePath.endsWith('.ogg')) res.setHeader('Content-Type', 'audio/ogg');
+    res.setHeader('Content-Disposition', 'inline');
+  }
+}));
 app.use('/avatars', express.static('avatars'));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
@@ -116,7 +124,11 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
   const fileUrl = `/${req.file.fieldname === 'avatar' ? 'avatars' : 'uploads'}/${req.file.filename}`;
-  const type = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
+  const mime = req.file.mimetype;
+  let type = 'file';
+  if (mime.startsWith('image/')) type = 'image';
+  else if (mime.startsWith('video/')) type = 'video';
+  else if (mime.startsWith('audio/')) type = 'audio';
   res.json({ url: fileUrl, type, name: req.file.originalname });
 });
 
@@ -217,48 +229,25 @@ io.on('connection', (socket) => {
   socket.emit('init', { user: users[username], chats: [...userDMs, ...userGroups, ...userChannels] });
   
   socket.on('send_message', (data) => {
-    const { to, type, text, attachments } = data; // 'to' здесь может быть chatId или имя группы
-    
+    const { to, type, text, attachments } = data;
     const message = {
-        id: uuidv4(),
-        from: username,
-        to, // сохраняем куда отправлено
-        text,
-        attachments: attachments || [],
-        timestamp: Date.now(),
-        type,
-        read: false
+      id: uuidv4(), from: username, to, text, attachments: attachments || [], timestamp: Date.now(), type, read: false
     };
-
-    let chatId = to; // Для групп и каналов ID совпадает с 'to'
-
     if (type === 'dm') {
-        // 'to' в DM — это ID чата вида 'user1_user2'
-        chatId = to;
-        if (!messages[chatId]) messages[chatId] = [];
-        messages[chatId].push(message);
-        saveAll();
-
-        // Отправляем себе
-        socket.emit('new_message', message);
-
-        // Находим собеседника: вычитаем себя из ID чата
-        const recipientName = chatId.split('_').find(name => name !== username);
-        
-        // Отправляем собеседнику
-        const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === recipientName);
-        if (recipientSocket) {
-            recipientSocket.emit('new_message', message);
-        }
+      if (!messages[to]) messages[to] = [];
+      messages[to].push(message);
+      saveAll();
+      socket.emit('new_message', message);
+      const recipientName = to.split('_').find(name => name !== username);
+      const recipientSocket = [...io.sockets.sockets.values()].find(s => s.username === recipientName);
+      if (recipientSocket) recipientSocket.emit('new_message', message);
     } else {
-        // Логика для групп/каналов (если будешь доделывать)
-        if (!messages[chatId]) messages[chatId] = [];
-        messages[chatId].push(message);
-        saveAll();
-        io.emit('new_message', message); 
+      if (!messages[to]) messages[to] = [];
+      messages[to].push(message);
+      saveAll();
+      io.emit('new_message', message);
     }
-});
-
+  });
   
   socket.on('load_chat', ({ chatId }) => {
     socket.emit('chat_history', { chatId, messages: messages[chatId] || [] });
